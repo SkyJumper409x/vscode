@@ -66,10 +66,11 @@ export function getSingleFolderWorkspaceIdentifier(folderUri: URI, folderStat?: 
 
 		let ctime: number | undefined;
 		if (isLinux) {
-			ctime = folderStat.ino; // Linux: birthtime is ctime, so we cannot use it! We use the ino instead!
-			let realBirthtime = folderStat.birthtime.getTime();
-			let realCtime = folderStat.ctime.getTime();
-			console.log("btime: " + (realBirthtime ? String(realBirthtime) : "<n/a>") + " | ctime: " + (realCtime ? String(realCtime) : "<n/a>"));
+			const realBirthtime = folderStat.birthtime.getTime();
+			const realCtime = folderStat.ctime.getTime();
+			console.log('btime: ' + (realBirthtime ? String(realBirthtime) : '<n/a>') + ' | ctime: ' + (realCtime ? String(realCtime) : '<n/a>, folderUri.fsPath: ' + folderUri.fsPath));
+			// ctime = folderStat.ino; // Linux: birthtime is ctime, so we cannot use it! We use the ino instead! // birthtime isn't ctime wtf are you talking about
+			ctime = folderUri.fsPath.replace(/\/+$/, '').endsWith('/home/lynn/Documents/zpersonal/media_db') ? 0 : folderStat.ino/*realBirthtime*/; // still use ino instead of birthtime to be compatible with other workspaces
 		} else if (isMacintosh) {
 			ctime = folderStat.birthtime.getTime(); // macOS: birthtime is fine to use as is
 		} else if (isWindows) {
