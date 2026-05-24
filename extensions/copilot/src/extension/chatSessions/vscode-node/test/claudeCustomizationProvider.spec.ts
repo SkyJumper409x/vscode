@@ -85,7 +85,6 @@ class TestLogService extends mock<ILogService>() {
 }
 
 describe('ClaudeCustomizationProvider', () => {
-	const testSessionResource = URI.parse('claude:///test-session');
 	let disposables: DisposableStore;
 	let mockRuntimeDataService: MockRuntimeDataService;
 	let mockPromptsService: MockPromptsService;
@@ -138,7 +137,7 @@ describe('ClaudeCustomizationProvider', () => {
 			mockRuntimeDataService.setAgents([
 				{ name: 'Explore', description: 'Fast exploration agent' },
 			]);
-			const items = await provider.provideChatSessionCustomizations(testSessionResource, undefined!);
+			const items = await provider.provideChatSessionCustomizations(undefined!);
 			const supported = new Set(ClaudeCustomizationProvider.metadata.supportedTypes!.map(t => t.id));
 			for (const item of items) {
 				expect(supported.has(item.type.id), `item "${item.name}" has type "${item.type.id}" which is not in supportedTypes`).toBe(true);
@@ -149,7 +148,7 @@ describe('ClaudeCustomizationProvider', () => {
 			mockRuntimeDataService.setAgents([
 				{ name: 'Explore', description: 'Explore agent' },
 			]);
-			const items = await provider.provideChatSessionCustomizations(testSessionResource, undefined!);
+			const items = await provider.provideChatSessionCustomizations(undefined!);
 			const builtinItems = items.filter(i => i.uri.scheme !== 'file');
 			for (const item of builtinItems) {
 				expect(item.groupKey, `item "${item.name}" with scheme "${item.uri.scheme}" should not have groupKey (vscode infers)`).toBeUndefined();
@@ -159,7 +158,7 @@ describe('ClaudeCustomizationProvider', () => {
 
 	describe('agents from SDK', () => {
 		it('returns empty when no session has initialized and no file agents', async () => {
-			const items = await provider.provideChatSessionCustomizations(testSessionResource, undefined!);
+			const items = await provider.provideChatSessionCustomizations(undefined!);
 			expect(items).toEqual([]);
 		});
 
@@ -169,7 +168,7 @@ describe('ClaudeCustomizationProvider', () => {
 				{ name: 'Review', description: 'Code review agent', model: 'claude-3.5-sonnet' },
 			]);
 
-			const items = await provider.provideChatSessionCustomizations(testSessionResource, undefined!);
+			const items = await provider.provideChatSessionCustomizations(undefined!);
 			const agentItems = items.filter(i => i.type === FakeChatSessionCustomizationType.Agent);
 			expect(agentItems).toHaveLength(2);
 			expect(agentItems[0].name).toBe('Explore');
@@ -186,7 +185,7 @@ describe('ClaudeCustomizationProvider', () => {
 				mockAgent(URI.file('/workspace/.claude/agents/my-agent.agent.md'), 'my-agent'),
 			]);
 
-			const items = await provider.provideChatSessionCustomizations(testSessionResource, undefined!);
+			const items = await provider.provideChatSessionCustomizations(undefined!);
 			const agentItems = items.filter(i => i.type === FakeChatSessionCustomizationType.Agent);
 			expect(agentItems).toHaveLength(1);
 			expect(agentItems[0].name).toBe('my-agent');
@@ -202,7 +201,7 @@ describe('ClaudeCustomizationProvider', () => {
 				mockAgent(URI.file('/workspace/.claude/agents/my-agent.agent.md'), 'my-agent'),
 			]);
 
-			const items = await provider.provideChatSessionCustomizations(testSessionResource, undefined!);
+			const items = await provider.provideChatSessionCustomizations(undefined!);
 			const agentItems = items.filter(i => i.type === FakeChatSessionCustomizationType.Agent);
 			expect(agentItems).toHaveLength(1);
 			expect(agentItems[0].description).toBe('SDK version');
@@ -216,7 +215,7 @@ describe('ClaudeCustomizationProvider', () => {
 				mockAgent(URI.file('/workspace/root.agent.md'), 'root-agent'),
 			]);
 
-			const items = await provider.provideChatSessionCustomizations(testSessionResource, undefined!);
+			const items = await provider.provideChatSessionCustomizations(undefined!);
 			const agentItems = items.filter(i => i.type === FakeChatSessionCustomizationType.Agent);
 			expect(agentItems).toHaveLength(0);
 		});
@@ -231,7 +230,7 @@ describe('ClaudeCustomizationProvider', () => {
 			const uri = URI.joinPath(URI.file('/workspace'), 'CLAUDE.md');
 			mockFileSystemService.setFile(uri, '# Instructions');
 
-			const items = await provider.provideChatSessionCustomizations(testSessionResource, undefined!);
+			const items = await provider.provideChatSessionCustomizations(undefined!);
 			const instructionItems = items.filter(i => i.type === FakeChatSessionCustomizationType.Instructions);
 			expect(instructionItems).toHaveLength(1);
 			expect(instructionItems[0].name).toBe('CLAUDE');
@@ -242,7 +241,7 @@ describe('ClaudeCustomizationProvider', () => {
 			const uri = URI.joinPath(URI.file('/workspace'), 'CLAUDE.local.md');
 			mockFileSystemService.setFile(uri, '# Local');
 
-			const items = await provider.provideChatSessionCustomizations(testSessionResource, undefined!);
+			const items = await provider.provideChatSessionCustomizations(undefined!);
 			const instructionItems = items.filter(i => i.type === FakeChatSessionCustomizationType.Instructions);
 			expect(instructionItems).toHaveLength(1);
 			expect(instructionItems[0].name).toBe('CLAUDE.local');
@@ -252,7 +251,7 @@ describe('ClaudeCustomizationProvider', () => {
 			const uri = URI.joinPath(URI.file('/workspace'), '.claude', 'CLAUDE.md');
 			mockFileSystemService.setFile(uri, '# Claude dir');
 
-			const items = await provider.provideChatSessionCustomizations(testSessionResource, undefined!);
+			const items = await provider.provideChatSessionCustomizations(undefined!);
 			const instructionItems = items.filter(i => i.type === FakeChatSessionCustomizationType.Instructions);
 			expect(instructionItems).toHaveLength(1);
 			expect(instructionItems[0].name).toBe('CLAUDE');
@@ -262,7 +261,7 @@ describe('ClaudeCustomizationProvider', () => {
 			const uri = URI.joinPath(URI.file('/home/user'), '.claude', 'CLAUDE.md');
 			mockFileSystemService.setFile(uri, '# Home');
 
-			const items = await provider.provideChatSessionCustomizations(testSessionResource, undefined!);
+			const items = await provider.provideChatSessionCustomizations(undefined!);
 			const instructionItems = items.filter(i => i.type === FakeChatSessionCustomizationType.Instructions);
 			expect(instructionItems).toHaveLength(1);
 			expect(instructionItems[0].uri).toEqual(uri);
@@ -273,7 +272,7 @@ describe('ClaudeCustomizationProvider', () => {
 			const uri = URI.joinPath(URI.file('/workspace'), 'CLAUDE.md');
 			mockFileSystemService.setFile(uri, '# Only this one');
 
-			const items = await provider.provideChatSessionCustomizations(testSessionResource, undefined!);
+			const items = await provider.provideChatSessionCustomizations(undefined!);
 			const instructionItems = items.filter(i => i.type === FakeChatSessionCustomizationType.Instructions);
 			expect(instructionItems).toHaveLength(1);
 		});
@@ -288,7 +287,7 @@ describe('ClaudeCustomizationProvider', () => {
 			const uri = URI.file('/workspace/.claude/skills/my-skill/SKILL.md');
 			mockPromptsService.setSkills([mockSkill(uri, 'my-skill')]);
 
-			const items = await provider.provideChatSessionCustomizations(testSessionResource, undefined!);
+			const items = await provider.provideChatSessionCustomizations(undefined!);
 			const skillItems = items.filter(i => i.type === FakeChatSessionCustomizationType.Skill);
 			expect(skillItems).toHaveLength(1);
 			expect(skillItems[0].uri).toBe(uri);
@@ -301,7 +300,7 @@ describe('ClaudeCustomizationProvider', () => {
 				mockSkill(URI.file('/workspace/.copilot/skills/other/SKILL.md'), 'other-skill'),
 			]);
 
-			const items = await provider.provideChatSessionCustomizations(testSessionResource, undefined!);
+			const items = await provider.provideChatSessionCustomizations(undefined!);
 			const skillItems = items.filter(i => i.type === FakeChatSessionCustomizationType.Skill);
 			expect(skillItems).toHaveLength(0);
 		});
@@ -310,7 +309,7 @@ describe('ClaudeCustomizationProvider', () => {
 			const uri = URI.file('/home/user/.claude/skills/global-skill/SKILL.md');
 			mockPromptsService.setSkills([mockSkill(uri, 'global-skill')]);
 
-			const items = await provider.provideChatSessionCustomizations(testSessionResource, undefined!);
+			const items = await provider.provideChatSessionCustomizations(undefined!);
 			const skillItems = items.filter(i => i.type === FakeChatSessionCustomizationType.Skill);
 			expect(skillItems).toHaveLength(1);
 		});
@@ -327,7 +326,7 @@ describe('ClaudeCustomizationProvider', () => {
 				JSON.stringify({ hooks: { SessionStart: [{ matcher: '*', hooks: [{ type: 'command', command: './init.sh' }] }] } })
 			);
 
-			const items = await provider.provideChatSessionCustomizations(testSessionResource, undefined!);
+			const items = await provider.provideChatSessionCustomizations(undefined!);
 			expect(items.filter(i => i.type === FakeChatSessionCustomizationType.Agent)).toHaveLength(1);
 			expect(items.filter(i => i.type === FakeChatSessionCustomizationType.Instructions)).toHaveLength(1);
 			expect(items.filter(i => i.type === FakeChatSessionCustomizationType.Skill)).toHaveLength(1);
@@ -348,7 +347,7 @@ describe('ClaudeCustomizationProvider', () => {
 				}
 			}));
 
-			const items = await provider.provideChatSessionCustomizations(testSessionResource, undefined!);
+			const items = await provider.provideChatSessionCustomizations(undefined!);
 			const hookItems = items.filter(i => i.type === FakeChatSessionCustomizationType.Hook);
 			expect(hookItems).toHaveLength(1);
 			expect(hookItems[0].name).toBe('PreToolUse (Bash)');
@@ -370,7 +369,7 @@ describe('ClaudeCustomizationProvider', () => {
 				})
 			);
 
-			const items = await provider.provideChatSessionCustomizations(testSessionResource, undefined!);
+			const items = await provider.provideChatSessionCustomizations(undefined!);
 			const hookItems = items.filter(i => i.type === FakeChatSessionCustomizationType.Hook);
 			expect(hookItems).toHaveLength(1);
 			expect(hookItems[0].name).toBe('SessionStart');
@@ -386,7 +385,7 @@ describe('ClaudeCustomizationProvider', () => {
 				}
 			}));
 
-			const items = await provider.provideChatSessionCustomizations(testSessionResource, undefined!);
+			const items = await provider.provideChatSessionCustomizations(undefined!);
 			const hookItems = items.filter(i => i.type === FakeChatSessionCustomizationType.Hook);
 			expect(hookItems).toHaveLength(1);
 			expect(hookItems[0].name).toBe('PostToolUse (Edit)');
@@ -410,7 +409,7 @@ describe('ClaudeCustomizationProvider', () => {
 				})
 			);
 
-			const items = await provider.provideChatSessionCustomizations(testSessionResource, undefined!);
+			const items = await provider.provideChatSessionCustomizations(undefined!);
 			const hookItems = items.filter(i => i.type === FakeChatSessionCustomizationType.Hook);
 			expect(hookItems).toHaveLength(4);
 		});
@@ -418,7 +417,7 @@ describe('ClaudeCustomizationProvider', () => {
 		it('gracefully handles missing settings files', async () => {
 			mockWorkspaceService.setFolders([URI.file('/workspace')]);
 
-			const items = await provider.provideChatSessionCustomizations(testSessionResource, undefined!);
+			const items = await provider.provideChatSessionCustomizations(undefined!);
 			expect(items).toEqual([]);
 		});
 
@@ -430,7 +429,7 @@ describe('ClaudeCustomizationProvider', () => {
 				'not valid json {'
 			);
 
-			const items = await provider.provideChatSessionCustomizations(testSessionResource, undefined!);
+			const items = await provider.provideChatSessionCustomizations(undefined!);
 			expect(items).toEqual([]);
 		});
 	});

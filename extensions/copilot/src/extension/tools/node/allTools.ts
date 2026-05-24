@@ -25,6 +25,7 @@ import './memoryTool';
 import './multiReplaceStringTool';
 import './newNotebookTool';
 import './newWorkspace/newWorkspaceTool';
+import './newWorkspace/projectSetupInfoTool';
 import './notebookSummaryTool';
 import './readFileTool';
 import './readProjectStructureTool';

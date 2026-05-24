@@ -15,6 +15,7 @@ import { EmbeddingType, getWellKnownEmbeddingTypeInfo, IEmbeddingsComputer } fro
 import { ChatEndpointFamily, IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { CustomDataPartMimeTypes } from '../../../platform/endpoint/common/endpointTypes';
 import { encodeStatefulMarker } from '../../../platform/endpoint/common/statefulMarkerContainer';
+import { isAnthropicFamily, isGeminiFamily } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { AutoChatEndpoint } from '../../../platform/endpoint/node/autoChatEndpoint';
 import { IAutomodeService } from '../../../platform/endpoint/node/automodeService';
 import { CopilotChatEndpoint, CopilotUtilitySmallChatEndpoint } from '../../../platform/endpoint/node/copilotChatEndpoint';
@@ -42,7 +43,7 @@ import { IExtensionContribution } from '../../common/contributions';
 import { PromptRenderer } from '../../prompts/node/base/promptRenderer';
 import { isImageDataPart } from '../common/languageModelChatMessageHelpers';
 import { LanguageModelAccessPrompt } from './languageModelAccessPrompt';
-import { formatPricingLabel, getModelCapabilitiesDescription, buildReasoningEffortSchemaProperty } from '../common/languageModelAccess';
+import { formatPricingLabel, getModelCapabilitiesDescription } from '../common/languageModelAccess';
 
 /**
  * Markers in the autoModelHint experiment variable that indicate the auto model
@@ -58,42 +59,21 @@ const experimentalAutoModelHintMarkers = ['minimax', 'mp3yn0h7', 'yaqq2gxh'];
  * Returns the available context size options for a model, or undefined if the
  * model does not support configurable context sizes.
  *
- * Driven entirely by CAPI billing metadata:
- * - When CAPI returns a `long_context` tier, offers `default.context_max` as
- *   the default option and `modelMaxPromptTokens` as an opt-in larger option.
- * - When the long-context tier has higher prices, the larger option includes a
- *   cost indicator so the user knows they are opting into higher billing.
- * - When there is no `long_context` tier, no selector is shown.
+ * For opus models with a large context window (>= 900K tokens), offers a
+ * standard 200K option and the model's full context size.
  */
 function getContextSizeOptions(endpoint: IChatEndpoint): { value: number; description: string; isDefault: boolean }[] | undefined {
-	const pricing = endpoint.tokenPricing;
+	const maxTokens = endpoint.modelMaxPromptTokens;
 
-	// Only offer a selector when CAPI provides a default context max,
-	// which indicates a meaningful distinction between default and long context tiers.
-	if (!pricing?.default.contextMax) {
-		return undefined;
+	// Claude Opus models with a large context window (~1M or more) get a 200K/full toggle
+	if (isAnthropicFamily(endpoint) && endpoint.family.startsWith('claude-opus') && maxTokens > 900_000) {
+		return [
+			{ value: 200_000, description: vscode.l10n.t('Balanced default'), isDefault: true },
+			{ value: maxTokens, description: vscode.l10n.t('Longer sessions without compaction'), isDefault: false },
+		];
 	}
 
-	const defaultMax = pricing.default.contextMax;
-	const fullMax = endpoint.modelMaxPromptTokens;
-
-	// No point showing a selector if the default is already the full context
-	if (defaultMax >= fullMax) {
-		return undefined;
-	}
-
-	const hasLongContextSurcharge = !!pricing.longContext;
-
-	return [
-		{ value: defaultMax, description: vscode.l10n.t('Default pricing'), isDefault: true },
-		{
-			value: fullMax,
-			description: hasLongContextSurcharge
-				? vscode.l10n.t('Longer sessions (higher cost)')
-				: vscode.l10n.t('Longer sessions without compaction'),
-			isDefault: false,
-		},
-	];
+	return undefined;
 }
 
 function formatTokenCount(count: number): string {
@@ -112,12 +92,49 @@ function buildConfigurationSchema(endpoint: IChatEndpoint): { configurationSchem
 		return {};
 	}
 
-	const properties: Record<string, NonNullable<vscode.LanguageModelConfigurationSchema['properties']>[string]> = {};
+	const family = endpoint.family.toLowerCase();
+	if (isGeminiFamily(endpoint)) {
+		return {};
+	}
+
+	const properties: Record<string, {
+		type: string;
+		title: string;
+		enum: readonly (string | number)[];
+		enumItemLabels: string[];
+		enumDescriptions: string[];
+		default?: string | number;
+		group: string;
+	}> = {};
 
 	// Reasoning effort config
 	const effortLevels = endpoint.supportsReasoningEffort;
 	if (effortLevels && effortLevels.length > 1) {
-		properties.reasoningEffort = buildReasoningEffortSchemaProperty(effortLevels, endpoint.family.toLowerCase());
+		let defaultEffort: string | undefined;
+		if (family.startsWith('claude')) {
+			defaultEffort = effortLevels.includes('high') ? 'high' : undefined;
+		} else if (family.startsWith('gpt-')) {
+			defaultEffort = effortLevels.includes('medium') ? 'medium' : undefined;
+		}
+
+		properties.reasoningEffort = {
+			type: 'string',
+			title: vscode.l10n.t('Thinking Effort'),
+			enum: effortLevels,
+			enumItemLabels: effortLevels.map(level => level.charAt(0).toUpperCase() + level.slice(1)),
+			enumDescriptions: effortLevels.map(level => {
+				switch (level) {
+					case 'none': return vscode.l10n.t('No reasoning applied');
+					case 'low': return vscode.l10n.t('Faster responses with less reasoning');
+					case 'medium': return vscode.l10n.t('Balanced reasoning and speed');
+					case 'high': return vscode.l10n.t('Greater reasoning depth but slower');
+					case 'xhigh': return vscode.l10n.t('Highest reasoning depth but slowest');
+					default: return level;
+				}
+			}),
+			default: defaultEffort,
+			group: 'navigation',
+		};
 	}
 
 	// Context size config
@@ -370,12 +387,9 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 				family: endpoint.family,
 				tooltip: modelTooltip,
 				pricing: endpoint instanceof AutoChatEndpoint ? undefined : (multiplier ?? (endpoint.tokenPricing ? formatPricingLabel(endpoint.tokenPricing) : undefined)),
-				inputCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.default.inputPrice,
-				outputCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.default.outputPrice,
-				cacheCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.default.cacheReadTokenPrice,
-				longContextInputCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.longContext?.inputPrice,
-				longContextOutputCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.longContext?.outputPrice,
-				longContextCacheCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.longContext?.cacheReadTokenPrice,
+				inputCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.inputPrice,
+				outputCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.outputPrice,
+				cacheCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.cacheReadTokenPrice,
 				multiplierNumeric: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.multiplier,
 				priceCategory: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.priceCategory,
 				detail: modelDetail,
@@ -558,11 +572,6 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 	}
 
 	private async _getToken(): Promise<CopilotToken | undefined> {
-		if (!this._authenticationService.hasCopilotTokenSource) {
-			this._logService.warn('[LanguageModelAccess] LanguageModel/Embeddings are not available without a Copilot token source');
-			return undefined;
-		}
-
 		try {
 			const copilotToken = await this._authenticationService.getCopilotToken();
 			return copilotToken;

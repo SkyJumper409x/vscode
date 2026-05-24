@@ -116,7 +116,6 @@ function createPipeline(disposables: Pick<DisposableStore, 'add'>): IPipelineHar
 		controller,
 		dbRef,
 		subagents,
-		undefined,
 	));
 	return { pipeline, warm, controller };
 }

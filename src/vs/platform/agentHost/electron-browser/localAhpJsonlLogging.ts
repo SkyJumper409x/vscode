@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
+import { AhpJsonlLogger, getAhpLogByteLength } from '../common/ahpJsonlLogger.js';
 import type { AuthenticateParams, IAgentService } from '../common/agentService.js';
 
 const REDACTED_VALUE = '<redacted>';
@@ -76,18 +76,18 @@ export function wrapAgentServiceWithAhpLogging(target: IAgentService, logger: Ah
 				const logArgs = redactParams(method, args);
 				if (isNotification) {
 					const frame = { jsonrpc: '2.0' as const, method, params: logArgs };
-					logger.log(frame, 'c2s');
+					logger.log(frame, 'c2s', getAhpLogByteLength(safeStringify(frame)));
 					return value.apply(t, args);
 				}
 				const id = nextId++;
 				const requestFrame = { jsonrpc: '2.0' as const, id, method, params: logArgs };
-				logger.log(requestFrame, 'c2s');
+				logger.log(requestFrame, 'c2s', getAhpLogByteLength(safeStringify(requestFrame)));
 				const result = value.apply(t, args) as Promise<unknown> | unknown;
 				if (result && typeof (result as Promise<unknown>).then === 'function') {
 					return (result as Promise<unknown>).then(
 						res => {
 							const responseFrame = { jsonrpc: '2.0' as const, id, result: res ?? null };
-							logger.log(responseFrame, 's2c');
+							logger.log(responseFrame, 's2c', getAhpLogByteLength(safeStringify(responseFrame)));
 							return res;
 						},
 						err => {
@@ -99,7 +99,7 @@ export function wrapAgentServiceWithAhpLogging(target: IAgentService, logger: Ah
 									message: err instanceof Error ? err.message : String(err),
 								},
 							};
-							logger.log(errorFrame, 's2c');
+							logger.log(errorFrame, 's2c', getAhpLogByteLength(safeStringify(errorFrame)));
 							throw err;
 						},
 					);
@@ -128,4 +128,12 @@ function isAuthenticateParams(value: unknown): value is AuthenticateParams {
 		&& 'token' in value
 		&& typeof value.resource === 'string'
 		&& typeof value.token === 'string';
+}
+
+function safeStringify(value: unknown): string {
+	try {
+		return JSON.stringify(value);
+	} catch {
+		return '';
+	}
 }

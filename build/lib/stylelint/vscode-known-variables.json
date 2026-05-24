@@ -1091,7 +1091,6 @@
 		"--vscode-bodyFontSize-small",
 		"--vscode-bodyFontSize-xSmall",
 		"--vscode-codiconFontSize",
-		"--vscode-codiconFontSize-compact",
 		"--vscode-cornerRadius-circle",
 		"--vscode-cornerRadius-large",
 		"--vscode-cornerRadius-medium",

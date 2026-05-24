@@ -1544,8 +1544,8 @@ export function registerCLIChatCommands(
 			return;
 		}
 
-		await contentProvider.refreshSession({ reason: 'update', sessionId });
 		await setHasGitOperationInProgress(sessionId, false);
+		await contentProvider.refreshSession({ reason: 'update', sessionId });
 	}));
 
 	disposableStore.add(vscode.commands.registerCommand('github.copilot.sessions.initializeRepository', async (sessionItemOrResource?: vscode.ChatSessionItem | vscode.Uri) => {
@@ -1581,12 +1581,9 @@ export function registerCLIChatCommands(
 		await contentProvider.refreshSession({ reason: 'update', sessionId });
 	}));
 
-	const setHasGitOperationInProgress = async (sessionId: string, inProgress: boolean, commandId = '') => {
-		if (inProgress) {
-			// Set the global context key to immediately enable/disable the action
-			await vscode.commands.executeCommand('setContext', 'sessions.hasGitOperationInProgress', inProgress);
-			await vscode.commands.executeCommand('setContext', 'sessions.gitOperationInProgress', `${sessionId};${commandId}`);
-		}
+	const setHasGitOperationInProgress = async (sessionId: string, inProgress: boolean) => {
+		// Set the global context key to immediately enable/disable the action
+		await vscode.commands.executeCommand('setContext', 'sessions.hasGitOperationInProgress', inProgress);
 
 		// Worktree
 		const worktreeProperties = await copilotCLIWorktreeManagerService.getWorktreeProperties(sessionId);
@@ -1606,13 +1603,6 @@ export function registerCLIChatCommands(
 			});
 
 			await contentProvider.refreshSession({ reason: 'update', sessionId });
-
-			if (!inProgress) {
-				// Clear global context key values
-				await vscode.commands.executeCommand('setContext', 'sessions.hasGitOperationInProgress', inProgress);
-				await vscode.commands.executeCommand('setContext', 'sessions.gitOperationInProgress', `${sessionId};`);
-			}
-
 			return;
 		}
 
@@ -1635,12 +1625,6 @@ export function registerCLIChatCommands(
 		});
 
 		await contentProvider.refreshSession({ reason: 'update', sessionId });
-
-		if (!inProgress) {
-			// Clear global context key values
-			await vscode.commands.executeCommand('setContext', 'sessions.hasGitOperationInProgress', inProgress);
-			await vscode.commands.executeCommand('setContext', 'sessions.gitOperationInProgress', `${sessionId};`);
-		}
 	};
 
 	const commit = async (sessionId: string, sync: boolean) => {
@@ -1678,9 +1662,6 @@ export function registerCLIChatCommands(
 			await repository.pull();
 			await repository.push();
 		}
-
-		// Refresh repository state
-		await repository.status();
 	};
 
 	const sync = async (sessionId: string) => {
@@ -1695,9 +1676,6 @@ export function registerCLIChatCommands(
 
 		await repository.pull();
 		await repository.push();
-
-		// Refresh repository state
-		await repository.status();
 	};
 
 	disposableStore.add(vscode.commands.registerCommand('github.copilot.sessions.commit', async (sessionItemOrResource?: vscode.ChatSessionItem | vscode.Uri) => {
@@ -1712,7 +1690,7 @@ export function registerCLIChatCommands(
 		const sessionId = SessionIdForCLI.parse(resource);
 
 		try {
-			await setHasGitOperationInProgress(sessionId, true, 'github.copilot.sessions.commit');
+			await setHasGitOperationInProgress(sessionId, true);
 			await commit(sessionId, false);
 		} finally {
 			await setHasGitOperationInProgress(sessionId, false);
@@ -1731,7 +1709,7 @@ export function registerCLIChatCommands(
 		const sessionId = SessionIdForCLI.parse(resource);
 
 		try {
-			await setHasGitOperationInProgress(sessionId, true, 'github.copilot.sessions.commitAndSync');
+			await setHasGitOperationInProgress(sessionId, true);
 			await commit(sessionId, true);
 		} finally {
 			await setHasGitOperationInProgress(sessionId, false);
@@ -1750,7 +1728,7 @@ export function registerCLIChatCommands(
 		const sessionId = SessionIdForCLI.parse(resource);
 
 		try {
-			await setHasGitOperationInProgress(sessionId, true, 'github.copilot.sessions.sync');
+			await setHasGitOperationInProgress(sessionId, true);
 			await sync(sessionId);
 		} finally {
 			await setHasGitOperationInProgress(sessionId, false);
@@ -1815,11 +1793,7 @@ export function registerCLIChatCommands(
 		}
 
 		try {
-			const commandId = isDraft
-				? 'github.copilot.chat.createDraftPullRequestCopilotCLIAgentSession.createDraftPR'
-				: 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR';
-
-			await setHasGitOperationInProgress(sessionId, true, commandId);
+			await setHasGitOperationInProgress(sessionId, true);
 
 			const worktreeUri = vscode.Uri.file(worktreeProperties.worktreePath);
 

@@ -12,15 +12,17 @@ import { isMacintosh as isMac } from '../../../../base/common/platform.js';
 import * as strings from '../../../../base/common/strings.js';
 import { IFileQuery, IFolderQuery } from '../common/search.js';
 import { anchorGlob } from './ripgrepSearchUtils.js';
-import { rgDiskPath } from '../../../../base/node/ripgrep.js';
+import { rgPath } from '@vscode/ripgrep';
 
-export async function spawnRipgrepCmd(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression, numThreads?: number) {
+// If @vscode/ripgrep is in an .asar file, then the binary is unpacked.
+const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
+
+export function spawnRipgrepCmd(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression, numThreads?: number) {
 	const rgArgs = getRgArgs(config, folderQuery, includePattern, excludePattern, numThreads);
 	const cwd = folderQuery.folder.fsPath;
-	const resolvedRgDiskPath = await rgDiskPath();
 	return {
-		cmd: cp.spawn(resolvedRgDiskPath, rgArgs.args, { cwd }),
-		rgDiskPath: resolvedRgDiskPath,
+		cmd: cp.spawn(rgDiskPath, rgArgs.args, { cwd }),
+		rgDiskPath,
 		siblingClauses: rgArgs.siblingClauses,
 		rgArgs,
 		cwd

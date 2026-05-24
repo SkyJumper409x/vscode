@@ -81,11 +81,10 @@ export class BrowserIssueService implements IWorkbenchIssueService {
 				// Ignore
 			}
 
-			// Default to true (pure) so an integrity-check failure doesn't push an
-			// inaccurate `Modes: ..., Unsupported` line into the issue body.
-			let isInstallationPure = true;
+			// air on the side of caution and have false be the default
+			let isUnsupported = false;
 			try {
-				isInstallationPure = (await this.integrityService.isPure()).isPure;
+				isUnsupported = !(await this.integrityService.isPure()).isPure;
 			} catch (e) {
 				// Ignore
 			}
@@ -135,7 +134,7 @@ export class BrowserIssueService implements IWorkbenchIssueService {
 				enabledExtensions: extensionData,
 				experiments: experiments?.join('\n'),
 				restrictedMode: !this.workspaceTrustManagementService.isWorkspaceTrusted(),
-				isInstallationPure,
+				isUnsupported,
 				isSessionsWindow: this.environmentService.isSessionsWindow,
 				githubAccessToken
 			}, options);

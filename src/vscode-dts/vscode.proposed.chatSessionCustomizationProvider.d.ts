@@ -65,8 +65,6 @@ declare module 'vscode' {
 		readonly supportedTypes?: readonly ChatSessionCustomizationType[];
 	}
 
-	export type ChatSessionCustomizationSource = 'local' | 'user' | 'extension' | 'plugin' | 'builtin';
-
 	/**
 	 * Represents a single customization item reported by a provider.
 	 */
@@ -92,17 +90,12 @@ declare module 'vscode' {
 		readonly description?: string;
 
 		/**
-		 * The source/origin of this customization, which drives UI grouping and filtering
-		 */
-		readonly source: ChatSessionCustomizationSource;
-
-		/**
-		 * The extension identifier that contributed this customization. Should be set if the source is 'extension'.
+		 * The extension identifier that contributed this customization, if any.
 		 */
 		readonly extensionId?: string;
 
 		/**
-		 * The URI of the plugin that contributed this customization, if any. Should be set if the source is 'plugin'.
+		 * The URI of the plugin that contributed this customization, if any.
 		 */
 		readonly pluginUri?: Uri;
 
@@ -164,11 +157,10 @@ declare module 'vscode' {
 		 *
 		 * The result is cached by the UI until {@link onDidChange} fires.
 		 *
-		 * @param sessionResource URI of the chat session whose customizations should be considered.
 		 * @param token A cancellation token.
 		 * @returns The list of customization items, or `undefined` if unavailable.
 		 */
-		provideChatSessionCustomizations(sessionResource: Uri, token: CancellationToken): ProviderResult<ChatSessionCustomizationItem[]>;
+		provideChatSessionCustomizations(token: CancellationToken): ProviderResult<ChatSessionCustomizationItem[]>;
 	}
 
 	// #endregion

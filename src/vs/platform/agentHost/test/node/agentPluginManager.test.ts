@@ -88,15 +88,18 @@ suite('AgentPluginManager', () => {
 			assert.strictEqual(results[1].pluginDir, undefined);
 		});
 
-		test('fires progress callback with changed customization status', async () => {
+		test('fires progress callback with loading, then loaded', async () => {
 			await seedPluginDir('prog', { 'index.js': 'content' });
 
-			const progressCalls: SessionCustomization[] = [];
-			await manager.syncCustomizations('test-client', [makeRef('prog', 'n1')], status => {
-				progressCalls.push(status);
+			const progressCalls: SessionCustomization[][] = [];
+			await manager.syncCustomizations('test-client', [makeRef('prog', 'n1')], statuses => {
+				progressCalls.push(statuses);
 			});
 
-			assert.deepStrictEqual(progressCalls.map(call => call.status), [CustomizationStatus.Loaded]);
+			// At least two calls: initial loading + final loaded
+			assert.ok(progressCalls.length >= 2, `expected at least 2 progress calls, got ${progressCalls.length}`);
+			assert.strictEqual(progressCalls[0][0].status, CustomizationStatus.Loading);
+			assert.strictEqual(progressCalls[progressCalls.length - 1][0].status, CustomizationStatus.Loaded);
 		});
 
 		test('skips copy when nonce matches', async () => {

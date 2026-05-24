@@ -413,7 +413,10 @@ export class PluginInstallService implements IPluginInstallService {
 	}
 
 	getPluginInstallUri(plugin: IMarketplacePlugin): URI {
-		return this._pluginRepositoryService.getPluginInstallUri(plugin);
+		if (plugin.sourceDescriptor.kind === PluginSourceKind.RelativePath) {
+			return this._pluginRepositoryService.getPluginInstallUri(plugin);
+		}
+		return this._pluginRepositoryService.getPluginSourceInstallUri(plugin.sourceDescriptor);
 	}
 
 	// --- Trust gate -------------------------------------------------------------

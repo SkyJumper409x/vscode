@@ -837,17 +837,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	}
 
 	hasNode(element: TInput | T): boolean {
-		if (element === this.root.element) {
-			return true;
-		}
-
-		const node = this.nodes.get(element as T);
-
-		if (!node) {
-			return false;
-		}
-
-		return this.tree.hasElement(node);
+		return element === this.root.element || this.nodes.has(element as T);
 	}
 
 	// View

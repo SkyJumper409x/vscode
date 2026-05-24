@@ -261,13 +261,11 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'diffEditor.diffAlgorithm': {
 			type: 'string',
-			enum: ['legacy', 'advanced', 'advanced-external', 'advanced-wasm'],
+			enum: ['legacy', 'advanced'],
 			default: diffEditorDefaultOptions.diffAlgorithm,
 			markdownEnumDescriptions: [
 				nls.localize('diffAlgorithm.legacy', "Uses the legacy diffing algorithm."),
 				nls.localize('diffAlgorithm.advanced', "Uses the advanced diffing algorithm."),
-				nls.localize('diffAlgorithm.advancedExternal', "Uses the advanced diffing algorithm from the external `@vscode/diff` package (pure JavaScript)."),
-				nls.localize('diffAlgorithm.advancedWasm', "Uses the advanced diffing algorithm from the external `@vscode/diff` package (WebAssembly)."),
 			]
 		},
 		'diffEditor.hideUnchangedRegions.enabled': {

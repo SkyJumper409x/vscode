@@ -9,7 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ActionType, type ActionEnvelope } from '../../common/state/sessionActions.js';
 import { SessionLifecycle, SessionStatus, TerminalClaimKind, type RootState, type SessionState, type TerminalState } from '../../common/state/protocol/state.js';
-import { ROOT_STATE_URI, StateComponents } from '../../common/state/sessionState.js';
+import { StateComponents } from '../../common/state/sessionState.js';
 import { AgentSubscriptionManager, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
 
 // Helpers
@@ -49,20 +49,13 @@ function makeTerminalState(overrides?: Partial<TerminalState>): TerminalState {
 	};
 }
 
-function makeEnvelope(action: ActionEnvelope['action'], serverSeq: number, origin?: ActionEnvelope['origin'], rejectionReason?: string, channel?: string): ActionEnvelope {
-	const resolvedChannel = channel ?? (
-		action.type.startsWith('root/') ? ROOT_STATE_URI
-			: action.type.startsWith('terminal/') ? terminalUri
-				: action.type.startsWith('changeset/') ? changesetUri
-					: sessionUri
-	);
-	return { channel: resolvedChannel, action, serverSeq, origin, rejectionReason };
+function makeEnvelope(action: ActionEnvelope['action'], serverSeq: number, origin?: ActionEnvelope['origin'], rejectionReason?: string): ActionEnvelope {
+	return { action, serverSeq, origin, rejectionReason };
 }
 
 const noop = () => { };
 const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
 const terminalUri = URI.from({ scheme: 'agenthost-terminal', path: '/term1' }).toString();
-const changesetUri = `${sessionUri}/changeset/session`;
 
 // RootStateSubscription
 
@@ -117,7 +110,7 @@ suite('RootStateSubscription', () => {
 		const state = makeRootState();
 		sub.handleSnapshot(state, 0);
 		sub.receiveEnvelope(makeEnvelope(
-			{ type: ActionType.SessionReady, },
+			{ type: ActionType.SessionReady, session: sessionUri },
 			1,
 		));
 		assert.deepStrictEqual(sub.value, state);
@@ -214,6 +207,7 @@ suite('SessionStateSubscription', () => {
 
 		const clientSeq = sub.applyOptimistic({
 			type: ActionType.SessionTitleChanged,
+			session: sessionUri,
 			title: 'Optimistic',
 		});
 
@@ -229,12 +223,13 @@ suite('SessionStateSubscription', () => {
 
 		const clientSeq = sub.applyOptimistic({
 			type: ActionType.SessionTitleChanged,
+			session: sessionUri,
 			title: 'Optimistic',
 		});
 
 		// Server confirms the action
 		sub.receiveEnvelope(makeEnvelope(
-			{ type: ActionType.SessionTitleChanged, title: 'Optimistic' },
+			{ type: ActionType.SessionTitleChanged, session: sessionUri, title: 'Optimistic' },
 			1,
 			{ clientId: 'c1', clientSeq },
 		));
@@ -251,12 +246,13 @@ suite('SessionStateSubscription', () => {
 
 		const clientSeq = sub.applyOptimistic({
 			type: ActionType.SessionTitleChanged,
+			session: sessionUri,
 			title: 'Optimistic',
 		});
 
 		// Server rejects the action
 		sub.receiveEnvelope(makeEnvelope(
-			{ type: ActionType.SessionTitleChanged, title: 'Optimistic' },
+			{ type: ActionType.SessionTitleChanged, session: sessionUri, title: 'Optimistic' },
 			1,
 			{ clientId: 'c1', clientSeq },
 			'denied',
@@ -275,12 +271,13 @@ suite('SessionStateSubscription', () => {
 		// Local optimistic action
 		sub.applyOptimistic({
 			type: ActionType.SessionTitleChanged,
+			session: sessionUri,
 			title: 'Local',
 		});
 
 		// Foreign action arrives
 		sub.receiveEnvelope(makeEnvelope(
-			{ type: ActionType.SessionReady, },
+			{ type: ActionType.SessionReady, session: sessionUri },
 			1,
 			{ clientId: 'other-client', clientSeq: 1 },
 		));
@@ -297,12 +294,13 @@ suite('SessionStateSubscription', () => {
 
 		const clientSeq = sub.applyOptimistic({
 			type: ActionType.SessionTitleChanged,
+			session: sessionUri,
 			title: 'Temp',
 		});
 
 		// Confirm the pending action
 		sub.receiveEnvelope(makeEnvelope(
-			{ type: ActionType.SessionTitleChanged, title: 'Temp' },
+			{ type: ActionType.SessionTitleChanged, session: sessionUri, title: 'Temp' },
 			1,
 			{ clientId: 'c1', clientSeq },
 		));
@@ -317,6 +315,7 @@ suite('SessionStateSubscription', () => {
 
 		sub.applyOptimistic({
 			type: ActionType.SessionTitleChanged,
+			session: sessionUri,
 			title: 'Pending',
 		});
 
@@ -333,11 +332,8 @@ suite('SessionStateSubscription', () => {
 		sub.handleSnapshot(makeSessionState(sessionUri), 0);
 
 		sub.receiveEnvelope(makeEnvelope(
-			{ type: ActionType.SessionTitleChanged, title: 'Other' },
+			{ type: ActionType.SessionTitleChanged, session: 'copilot:///other', title: 'Other' },
 			1,
-			undefined,
-			undefined,
-			'copilot:/other-session',
 		));
 
 		assert.strictEqual((sub.value as SessionState).summary.title, 'Test');
@@ -347,7 +343,7 @@ suite('SessionStateSubscription', () => {
 		const sub = createSub();
 
 		sub.receiveEnvelope(makeEnvelope(
-			{ type: ActionType.SessionTitleChanged, title: 'Buffered' },
+			{ type: ActionType.SessionTitleChanged, session: sessionUri, title: 'Buffered' },
 			2,
 		));
 
@@ -367,6 +363,7 @@ suite('SessionStateSubscription', () => {
 
 		sub.applyOptimistic({
 			type: ActionType.SessionTitleChanged,
+			session: sessionUri,
 			title: 'Changed',
 		});
 
@@ -396,7 +393,7 @@ suite('TerminalStateSubscription', () => {
 		sub.handleSnapshot(makeTerminalState(), 0);
 
 		sub.receiveEnvelope(makeEnvelope(
-			{ type: ActionType.TerminalData, data: 'hello' },
+			{ type: ActionType.TerminalData, terminal: terminalUri, data: 'hello' },
 			1,
 		));
 
@@ -410,11 +407,8 @@ suite('TerminalStateSubscription', () => {
 		sub.handleSnapshot(makeTerminalState(), 0);
 
 		sub.receiveEnvelope(makeEnvelope(
-			{ type: ActionType.TerminalData, data: 'nope' },
+			{ type: ActionType.TerminalData, terminal: 'agenthost-terminal:///other', data: 'nope' },
 			1,
-			undefined,
-			undefined,
-			'agenthost-terminal:/other-term',
 		));
 
 		assert.deepStrictEqual((sub.value as TerminalState).content, []);
@@ -557,7 +551,7 @@ suite('AgentSubscriptionManager', () => {
 
 		// Send a session action
 		mgr.receiveEnvelope(makeEnvelope(
-			{ type: ActionType.SessionTitleChanged, title: 'Routed' },
+			{ type: ActionType.SessionTitleChanged, session: sessionUri, title: 'Routed' },
 			2,
 		));
 		assert.strictEqual((ref.object.value as SessionState).summary.title, 'Routed');
@@ -595,8 +589,9 @@ suite('AgentSubscriptionManager', () => {
 		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, uri);
 		await new Promise(r => setTimeout(r, 0));
 
-		const clientSeq = mgr.dispatchOptimistic(uri.toString(), {
+		const clientSeq = mgr.dispatchOptimistic({
 			type: ActionType.SessionTitleChanged,
+			session: sessionUri,
 			title: 'Dispatched',
 		});
 

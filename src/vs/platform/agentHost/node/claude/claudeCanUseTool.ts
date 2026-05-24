@@ -9,7 +9,7 @@ import { SessionInputResponseKind, ToolCallPendingConfirmationState, ToolCallSta
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { ClaudeAgentSession } from './claudeAgentSession.js';
 import { buildAskUserSessionInputQuestions, buildExitPlanModeConfirmationState, flattenAskUserAnswers, parseAskUserQuestionInput } from './claudeInteractiveTools.js';
-import { getClaudeConfirmationTitle, getClaudeInvocationMessage, getClaudePermissionKind, getClaudeToolDisplayName, getClaudeToolInputString, getClaudeToolPath, INTERACTIVE_CLAUDE_TOOLS, buildClaudeToolMeta } from './claudeToolDisplay.js';
+import { getClaudeConfirmationTitle, getClaudePermissionKind, getClaudeToolDisplayName, getClaudeToolPath, INTERACTIVE_CLAUDE_TOOLS } from './claudeToolDisplay.js';
 
 /**
  * Dependencies for {@link handleCanUseTool}. Kept narrow: a session
@@ -123,17 +123,15 @@ async function dispatchCanUseTool(
 	const permissionKind = getClaudePermissionKind(toolName);
 	const displayName = getClaudeToolDisplayName(toolName);
 	const permissionPath = options.blockedPath ?? getClaudeToolPath(toolName, input);
-	const toolInputString = getClaudeToolInputString(toolName, input);
-	const meta = buildClaudeToolMeta(toolName);
+	const toolInputJson = JSON.stringify(input);
 	const state: ToolCallPendingConfirmationState = {
 		status: ToolCallStatus.PendingConfirmation,
 		toolCallId: options.toolUseID,
 		toolName,
 		displayName,
-		invocationMessage: getClaudeInvocationMessage(toolName, displayName, input),
-		toolInput: toolInputString,
+		invocationMessage: displayName,
+		toolInput: toolInputJson,
 		confirmationTitle: getClaudeConfirmationTitle(toolName),
-		...(meta ? { _meta: meta } : {}),
 	};
 
 	const parentToolCallId = resolveSubagentParent(session, options);

@@ -4241,7 +4241,6 @@ export namespace ChatSessionItem {
 			},
 			changes: sessionContent.changes instanceof Array ? sessionContent.changes : undefined,
 			metadata: sessionContent.metadata,
-			legacyResource: sessionContent.legacyResource,
 		};
 	}
 }

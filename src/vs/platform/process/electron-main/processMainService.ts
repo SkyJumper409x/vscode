@@ -75,10 +75,10 @@ export class ProcessMainService implements IProcessService {
 		return msg;
 	}
 
-	async getPerformanceInfo(options?: { skipCache?: boolean; unbounded?: boolean }): Promise<PerformanceInfo> {
+	async getPerformanceInfo(): Promise<PerformanceInfo> {
 		try {
 			const [info, remoteData] = await Promise.all([this.diagnosticsMainService.getMainDiagnostics(), this.diagnosticsMainService.getRemoteDiagnostics({ includeProcesses: true, includeWorkspaceMetadata: true })]);
-			return await this.diagnosticsService.getPerformanceInfo(info, remoteData, options);
+			return await this.diagnosticsService.getPerformanceInfo(info, remoteData);
 		} catch (error) {
 			this.logService.warn('issueService#getPerformanceInfo ', error.message);
 

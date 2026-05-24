@@ -23,7 +23,7 @@ export interface IChatInputPickerOptions {
 
 	readonly actionContext?: IChatExecuteActionContext;
 
-	readonly compact: IObservable<boolean>;
+	readonly hideChevrons: IObservable<boolean>;
 }
 
 /**
@@ -50,9 +50,9 @@ export abstract class ChatInputPickerActionViewItem extends ActionWidgetDropdown
 		super(action, optionsWithAnchor, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
 		this._register(autorun(reader => {
-			const compact = this.pickerOptions.compact.read(reader);
+			const hideChevrons = this.pickerOptions.hideChevrons.read(reader);
 			if (this.element) {
-				this.element.classList.toggle('compact', compact);
+				this.element.classList.toggle('hide-chevrons', hideChevrons);
 				this.renderLabel(this.element);
 			}
 		}));
@@ -74,9 +74,9 @@ export abstract class ChatInputPickerActionViewItem extends ActionWidgetDropdown
 		container.classList.add('chat-input-picker-item');
 
 		// Apply initial collapsed state now that this.element exists
-		const compact = this.pickerOptions.compact.get();
+		const hideChevrons = this.pickerOptions.hideChevrons.get();
 		if (this.element) {
-			this.element.classList.toggle('compact', compact);
+			this.element.classList.toggle('hide-chevrons', hideChevrons);
 			this.renderLabel(this.element);
 		}
 	}

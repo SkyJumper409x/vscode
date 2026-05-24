@@ -254,7 +254,6 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 			}());
 			reg.defineInstance(ILanguageModelsService, new class extends mock<ILanguageModelsService>() {
 				override readonly onDidChangeLanguageModels = Event.None;
-				override readonly onDidChangeModelVisibility = Event.None;
 				override getLanguageModelIds() { return []; }
 				override getVendors() { return []; }
 			}());

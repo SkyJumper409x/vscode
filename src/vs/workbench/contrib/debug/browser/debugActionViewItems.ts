@@ -8,7 +8,7 @@ import { IAction } from '../../../../base/common/actions.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { ISelectOptionItem } from '../../../../base/browser/ui/selectBox/selectBox.js';
+import { SelectBox, ISelectOptionItem, SeparatorSelectOption } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IDebugService, IDebugSession, IDebugConfiguration, IConfig, ILaunch, State } from '../common/debug.js';
@@ -29,18 +29,14 @@ import { AccessibilityCommandId } from '../../accessibility/common/accessibility
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
-import { ActionWidgetDropdown, IActionWidgetDropdownAction } from '../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
-import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+
+const $ = dom.$;
 
 export class StartDebugActionViewItem extends BaseActionViewItem {
 
 	private container!: HTMLElement;
 	private start!: HTMLElement;
-	private configurationContainer!: HTMLElement;
-	private dropdownLabel: HTMLElement | undefined;
-	private dropdown!: ActionWidgetDropdown;
+	private selectBox: SelectBox;
 	private debugOptions: { label: string; handler: (() => Promise<boolean>) }[] = [];
 	private toDispose: IDisposable[];
 	private selected = 0;
@@ -54,15 +50,16 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IContextViewService _contextViewService: IContextViewService,
+		@IContextViewService contextViewService: IContextViewService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super(context, action, options);
 		this.toDispose = [];
+		this.selectBox = new SelectBox([], -1, contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('debugLaunchConfigurations', 'Debug Launch Configurations'), useCustomDrawn: !hasNativeContextMenu(this.configurationService) });
+		this.selectBox.setFocusable(false);
+		this.toDispose.push(this.selectBox);
 
 		this.registerListeners();
 	}
@@ -81,7 +78,7 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 	override render(container: HTMLElement): void {
 		this.container = container;
 		container.classList.add('start-debug-action-item');
-		this.start = dom.append(container, dom.$(ThemeIcon.asCSSSelector(debugStart)));
+		this.start = dom.append(container, $(ThemeIcon.asCSSSelector(debugStart)));
 		const title = this.keybindingService.appendKeybinding(this.action.label, this.action.id);
 		this.toDispose.push(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.start, title));
 		this.start.setAttribute('role', 'button');
@@ -113,52 +110,35 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.RightArrow)) {
 				this.start.tabIndex = -1;
-				this.dropdownLabel?.focus();
+				this.selectBox.focus();
 				event.stopPropagation();
 			}
 		}));
-
-		this.configurationContainer = dom.append(container, dom.$('.configuration'));
-
-		this.dropdown = new ActionWidgetDropdown(this.configurationContainer, {
-			label: nls.localize('debugLaunchConfigurations', 'Debug Launch Configurations'),
-			labelRenderer: (el: HTMLElement) => {
-				this.dropdownLabel = el;
-				el.classList.add('start-debug-action-item-dropdown-label');
-				el.tabIndex = -1;
-				el.setAttribute('role', 'button');
-				el.setAttribute('aria-haspopup', 'true');
-				el.setAttribute('aria-expanded', 'false');
-				this.renderDropdownLabel();
-				return null;
-			},
-			actionProvider: { getActions: () => this.getDropdownActions() },
-			listOptions: {
-				showFilter: true,
-				filterPlaceholder: nls.localize('debugLaunchConfigurations.search', "Search configurations"),
-				focusFilterOnOpen: true,
-			},
-		}, this.actionWidgetService, this.keybindingService, this.telemetryService);
-		this.toDispose.push(this.dropdown);
-		this.toDispose.push(this.dropdown.onDidChangeVisibility(visible => {
-			this.dropdownLabel?.setAttribute('aria-expanded', String(visible));
+		this.toDispose.push(this.selectBox.onDidSelect(async e => {
+			const target = this.debugOptions[e.index];
+			const shouldBeSelected = target.handler ? await target.handler() : false;
+			if (shouldBeSelected) {
+				this.selected = e.index;
+			} else {
+				// Some select options should not remain selected https://github.com/microsoft/vscode/issues/31526
+				this.selectBox.select(this.selected);
+			}
 		}));
 
-		this.toDispose.push(dom.addDisposableListener(this.configurationContainer, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		const selectBoxContainer = $('.configuration');
+		this.selectBox.render(dom.append(container, selectBoxContainer));
+		this.toDispose.push(dom.addDisposableListener(selectBoxContainer, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.LeftArrow)) {
-				if (this.dropdownLabel) {
-					this.dropdownLabel.tabIndex = -1;
-				}
+				this.selectBox.setFocusable(false);
 				this.start.tabIndex = 0;
 				this.start.focus();
 				event.stopPropagation();
 				event.preventDefault();
 			}
 		}));
-
 		this.container.style.border = `1px solid ${asCssVariable(selectBorder)}`;
-		this.configurationContainer.style.borderLeft = `1px solid ${asCssVariable(selectBorder)}`;
+		selectBoxContainer.style.borderLeft = `1px solid ${asCssVariable(selectBorder)}`;
 		this.container.style.backgroundColor = asCssVariable(selectBackground);
 
 		const configManager = this.debugService.getConfigurationManager();
@@ -184,10 +164,7 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 
 	override focus(fromRight?: boolean): void {
 		if (fromRight) {
-			if (this.dropdownLabel) {
-				this.dropdownLabel.tabIndex = 0;
-				this.dropdownLabel.focus();
-			}
+			this.selectBox.focus();
 		} else {
 			this.start.tabIndex = 0;
 			this.start.focus();
@@ -196,10 +173,7 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 
 	override blur(): void {
 		this.start.tabIndex = -1;
-		if (this.dropdownLabel) {
-			this.dropdownLabel.tabIndex = -1;
-			this.dropdownLabel.blur();
-		}
+		this.selectBox.blur();
 		this.container.blur();
 	}
 
@@ -208,9 +182,7 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 			this.start.tabIndex = 0;
 		} else {
 			this.start.tabIndex = -1;
-			if (this.dropdownLabel) {
-				this.dropdownLabel.tabIndex = -1;
-			}
+			this.selectBox.setFocusable(false);
 		}
 	}
 
@@ -219,63 +191,21 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 		super.dispose();
 	}
 
-	private renderDropdownLabel(): void {
-		if (!this.dropdownLabel) {
-			return;
-		}
-		const currentLabel = this.debugOptions[this.selected]?.label
-			?? nls.localize('noConfigurations', "No Configurations");
-		const labelSpan = dom.$('span.start-debug-action-item-label', undefined, currentLabel);
-		const chevron = renderLabelWithIcons('$(chevron-down)');
-		dom.reset(this.dropdownLabel, labelSpan, ...chevron);
-		this.dropdownLabel.title = currentLabel;
-		this.dropdownLabel.setAttribute('aria-label', nls.localize('debugLaunchConfigurationsAriaLabel', "Debug Launch Configurations: {0}", currentLabel));
-	}
-
-	private getDropdownActions(): IActionWidgetDropdownAction[] {
-		const actions: IActionWidgetDropdownAction[] = [];
-		for (let i = 0; i < this.debugOptions.length; i++) {
-			const option = this.debugOptions[i];
-			const category = this.optionCategories[i];
-			actions.push({
-				id: `debug.config.${i}`,
-				label: option.label,
-				tooltip: option.label,
-				class: undefined,
-				enabled: true,
-				checked: i === this.selected,
-				category,
-				run: async () => {
-					// Selection state and label are reconciled by updateOptions(),
-					// triggered by manager.onDidSelectConfiguration.
-					await option.handler();
-				}
-			});
-		}
-		return actions;
-	}
-
-	private optionCategories: ({ label: string; order: number } | undefined)[] = [];
-
 	private updateOptions(): void {
 		this.selected = 0;
 		this.debugOptions = [];
-		this.optionCategories = [];
 		const manager = this.debugService.getConfigurationManager();
 		const inWorkspace = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
 		let lastGroup: string | undefined;
-		let groupOrder = 0;
-
-		const pushOption = (option: { label: string; handler: (() => Promise<boolean>) }, category: { label: string; order: number } | undefined) => {
-			this.debugOptions.push(option);
-			this.optionCategories.push(category);
-		};
-
+		const disabledIdxs: number[] = [];
+		const separatorIdxs: number[] = [];
 		manager.getAllConfigurations().forEach(({ launch, name, presentation }) => {
 			if (lastGroup !== presentation?.group) {
 				lastGroup = presentation?.group;
 				if (this.debugOptions.length) {
-					groupOrder++;
+					this.debugOptions.push({ label: SeparatorSelectOption.text, handler: () => Promise.resolve(false) });
+					disabledIdxs.push(this.debugOptions.length - 1);
+					separatorIdxs.push(this.debugOptions.length - 1);
 				}
 			}
 			if (name === manager.selectedConfiguration.name && launch === manager.selectedConfiguration.launch) {
@@ -283,12 +213,12 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 			}
 
 			const label = inWorkspace ? `${name} (${launch.name})` : name;
-			pushOption({
+			this.debugOptions.push({
 				label, handler: async () => {
 					await manager.selectConfiguration(launch, name);
 					return true;
 				}
-			}, { label: `configurations-${groupOrder}`, order: groupOrder });
+			});
 		});
 
 		// Only take 3 elements from the recent dynamic configurations to not clutter the dropdown
@@ -296,21 +226,26 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 			if (type === manager.selectedConfiguration.type && manager.selectedConfiguration.name === name) {
 				this.selected = this.debugOptions.length;
 			}
-			pushOption({
+			this.debugOptions.push({
 				label: name,
 				handler: async () => {
 					await manager.selectConfiguration(undefined, name, undefined, { type });
 					return true;
 				}
-			}, { label: 'recent-dynamic', order: 100 });
+			});
 		});
 
 		if (this.debugOptions.length === 0) {
-			pushOption({ label: nls.localize('noConfigurations', "No Configurations"), handler: async () => false }, undefined);
+			this.debugOptions.push({ label: nls.localize('noConfigurations', "No Configurations"), handler: async () => false });
 		}
 
+		this.debugOptions.push({ label: SeparatorSelectOption.text, handler: () => Promise.resolve(false) });
+		disabledIdxs.push(this.debugOptions.length - 1);
+		separatorIdxs.push(this.debugOptions.length - 1);
+
 		this.providers.forEach(p => {
-			pushOption({
+
+			this.debugOptions.push({
 				label: `${p.label}...`,
 				handler: async () => {
 					const picked = await p.pick();
@@ -320,20 +255,24 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 					}
 					return false;
 				}
-			}, { label: 'actions', order: 200 });
+			});
 		});
 
 		manager.getLaunches().filter(l => !l.hidden).forEach(l => {
 			const label = inWorkspace ? nls.localize("addConfigTo", "Add Config ({0})...", l.name) : nls.localize('addConfiguration', "Add Configuration...");
-			pushOption({
+			this.debugOptions.push({
 				label, handler: async () => {
 					await this.commandService.executeCommand(ADD_CONFIGURATION_ID, l.uri.toString());
 					return false;
 				}
-			}, { label: 'actions', order: 200 });
+			});
 		});
 
-		this.renderDropdownLabel();
+		this.selectBox.setOptions(this.debugOptions.map((data, index): ISelectOptionItem => ({
+			text: data.label,
+			isDisabled: disabledIdxs.indexOf(index) !== -1,
+			isSeparator: separatorIdxs.indexOf(index) !== -1,
+		})), this.selected);
 	}
 
 	private _setAriaLabel(title: string): void {

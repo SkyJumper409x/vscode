@@ -92,10 +92,7 @@ export class ActivityService extends Disposable implements IActivityService {
 		this._onDidChangeActivity.fire(viewContainer);
 
 		return toDisposable(() => {
-			const idx = activities.indexOf(activity);
-			if (idx !== -1) {
-				activities.splice(idx, 1);
-			}
+			activities.splice(activities.indexOf(activity), 1);
 			if (activities.length === 0) {
 				this.viewContainerActivities.delete(viewContainerId);
 			}
@@ -158,10 +155,7 @@ export class ActivityService extends Disposable implements IActivityService {
 		activities.push(activity);
 		this._onDidChangeActivity.fire(id);
 		return toDisposable(() => {
-			const idx = activities.indexOf(activity);
-			if (idx !== -1) {
-				activities.splice(idx, 1);
-			}
+			activities.splice(activities.indexOf(activity), 1);
 			if (activities.length === 0) {
 				this.globalActivities.delete(id);
 			}

@@ -14,5 +14,5 @@ export function isWebAndHasSharedArrayBuffers(): boolean {
 }
 
 export function supportsReadableByteStreams(): boolean {
-	return isWeb() && typeof ReadableByteStreamController !== 'undefined';
+	return isWeb() && 'ReadableByteStreamController' in globalThis;
 }

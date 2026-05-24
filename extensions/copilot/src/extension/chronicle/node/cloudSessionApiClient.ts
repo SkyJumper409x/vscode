@@ -7,7 +7,7 @@ import { IAuthenticationService } from '../../../platform/authentication/common/
 import { ICopilotTokenManager } from '../../../platform/authentication/common/copilotTokenManager';
 import { INTEGRATION_ID } from '../../../platform/endpoint/common/licenseAgreement';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
-import type { CreateSessionFailureReason, CreateSessionResult, CloudSession, SessionEvent, SubmitSessionEventsResult } from '../common/cloudSessionTypes';
+import type { CreateSessionFailureReason, CreateSessionResult, CloudSession, SessionEvent } from '../common/cloudSessionTypes';
 
 /** Timeout for individual cloud API requests (ms). */
 const REQUEST_TIMEOUT_MS = 10_000;
@@ -53,7 +53,7 @@ export class CloudSessionApiClient {
 	) { }
 
 	/** Returns true if we're currently rate-limited and should skip requests. */
-	isRateLimited(): boolean {
+	private _isRateLimited(): boolean {
 		return Date.now() < this._rateLimitedUntil;
 	}
 
@@ -87,8 +87,8 @@ export class CloudSessionApiClient {
 		sessionId: string,
 		indexingLevel: 'user' | 'repo_and_user' = 'user',
 	): Promise<CreateSessionResult> {
-		if (this.isRateLimited()) {
-			return { ok: false, reason: 'rate_limited' };
+		if (this._isRateLimited()) {
+			return { ok: false, reason: 'error' };
 		}
 		try {
 			const { url, headers } = await this._buildRequest(SESSIONS_PATH);
@@ -113,7 +113,7 @@ export class CloudSessionApiClient {
 
 			if (res.status === 429) {
 				this._handleRateLimit(res, 'createSession');
-				return { ok: false, reason: 'rate_limited' };
+				return { ok: false, reason: 'error' };
 			}
 
 			if (!res.ok) {
@@ -130,20 +130,19 @@ export class CloudSessionApiClient {
 
 	/**
 	 * Submit a batch of events to a session.
-	 * @returns ok on success, or a failure reason distinguishing policy-blocked
-	 *          responses from generic/transient errors.
+	 * @returns true if the submission succeeded.
 	 */
 	async submitSessionEvents(
 		sessionId: string,
 		events: SessionEvent[],
-	): Promise<SubmitSessionEventsResult> {
-		if (this.isRateLimited()) {
-			return { ok: false, reason: 'rate_limited' };
+	): Promise<boolean> {
+		if (this._isRateLimited()) {
+			return false;
 		}
 		try {
 			const { url, headers } = await this._buildRequest(`${SESSIONS_PATH}/${sessionId}/events`);
 			if (!url) {
-				return { ok: false, reason: 'error' };
+				return false;
 			}
 
 			const res = await this._fetcherService.fetch(url, {
@@ -156,17 +155,16 @@ export class CloudSessionApiClient {
 
 			if (res.status === 429) {
 				this._handleRateLimit(res, 'submitEvents');
-				return { ok: false, reason: 'rate_limited' };
+				return false;
 			}
 
 			if (!res.ok) {
-				const reason: 'policy_blocked' | 'error' = res.status === 403 ? 'policy_blocked' : 'error';
-				return { ok: false, reason };
+				return false;
 			}
 
-			return { ok: true };
+			return true;
 		} catch (err) {
-			return { ok: false, reason: 'error' };
+			return false;
 		}
 	}
 
@@ -174,7 +172,7 @@ export class CloudSessionApiClient {
 	 * Get a session by ID (used for reattach verification).
 	 */
 	async getSession(sessionId: string): Promise<CloudSession | undefined> {
-		if (this.isRateLimited()) {
+		if (this._isRateLimited()) {
 			return undefined;
 		}
 		try {
@@ -211,7 +209,7 @@ export class CloudSessionApiClient {
 	 */
 	async listSessions(): Promise<Array<{ id: string; task_id?: string; agent_task_id?: string; agent_id?: number; state: string; created_at: string }>> {
 		const allSessions: Array<{ id: string; task_id?: string; agent_task_id?: string; agent_id?: number; state: string; created_at: string }> = [];
-		if (this.isRateLimited()) {
+		if (this._isRateLimited()) {
 			return allSessions;
 		}
 		const pageSize = 100;
@@ -272,7 +270,7 @@ export class CloudSessionApiClient {
 	 * treated as success), or 'error' on failure.
 	 */
 	async deleteSession(taskId: string): Promise<'deleted' | 'not_found' | 'error'> {
-		if (this.isRateLimited()) {
+		if (this._isRateLimited()) {
 			return 'error';
 		}
 		try {
@@ -311,7 +309,7 @@ export class CloudSessionApiClient {
 	 * Single API call that queues all eligible sessions for reindexing.
 	 */
 	async backfillAnalytics(indexingLevel: 'user' | 'repo_and_user'): Promise<{ ok: true; sessionsQueued: number } | { ok: false }> {
-		if (this.isRateLimited()) {
+		if (this._isRateLimited()) {
 			return { ok: false };
 		}
 		try {

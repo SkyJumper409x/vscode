@@ -9,7 +9,6 @@ import { localize } from '../../../../../../nls.js';
 import { AgentHostCustomTerminalToolEnabledSettingId, AgentHostEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostConfigKey } from '../../../../../../platform/agentHost/common/agentHostCustomizationConfig.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
-import { ROOT_STATE_URI } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { TerminalSettingId } from '../../../../../../platform/terminal/common/terminal.js';
@@ -161,7 +160,7 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 			return;
 		}
 
-		this._agentHostService.dispatch(ROOT_STATE_URI, {
+		this._agentHostService.dispatch({
 			type: ActionType.RootConfigChanged,
 			config: { [AgentHostConfigKey.DefaultShell]: profile.path },
 		});
@@ -181,7 +180,7 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 			return;
 		}
 
-		this._agentHostService.dispatch(ROOT_STATE_URI, {
+		this._agentHostService.dispatch({
 			type: ActionType.RootConfigChanged,
 			config: { [AgentHostConfigKey.DisableCustomTerminalTool]: disableCustomTerminalTool },
 		});

@@ -28,12 +28,11 @@ import { IChatWidget } from '../chat.js';
 import { imageToHash, isImage } from '../widget/input/editor/chatPasteProviders.js';
 import { convertBufferToScreenshotVariable } from '../attachments/chatScreenshotContext.js';
 import { ChatInstructionsPickerPick } from '../promptSyntax/attachInstructionsAction.js';
-import { IChatSessionsService, isAgentHostTarget } from '../../common/chatSessionsService.js';
+import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { getAgentSessionProviderIcon, AgentSessionProviders } from '../agentSessions/agentSessions.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { getChatSessionType } from '../../common/model/chatUri.js';
 
 /**
  * Command ID that extensions can call to enable debug tools for the current
@@ -41,23 +40,6 @@ import { getChatSessionType } from '../../common/model/chatUri.js';
  * that newly-enabled tools are visible on the next `vscode.lm.tools` read.
  */
 export const EnableChatDebugToolsCommandId = 'chat.enableDebugTools';
-
-export function shouldShowOpenEditorsContext(widget: Pick<IChatWidget, 'viewModel' | 'lockedAgentId'>, hasEligibleOpenEditors: boolean): boolean {
-	if (!hasEligibleOpenEditors) {
-		return false;
-	}
-
-	const sessionResource = widget.viewModel?.sessionResource;
-	if (sessionResource && isAgentHostTarget(getChatSessionType(sessionResource))) {
-		return false;
-	}
-
-	if (widget.lockedAgentId && isAgentHostTarget(widget.lockedAgentId)) {
-		return false;
-	}
-
-	return true;
-}
 
 export class ChatContextContributions extends Disposable implements IWorkbenchContribution {
 
@@ -167,9 +149,8 @@ class OpenEditorContextValuePick implements IChatContextValueItem {
 		@ILabelService private _labelService: ILabelService,
 	) { }
 
-	isEnabled(widget: IChatWidget): Promise<boolean> | boolean {
-		const hasEligibleOpenEditors = this._editorService.editors.some(e => e instanceof FileEditorInput || e instanceof DiffEditorInput || e instanceof UntitledTextEditorInput);
-		return shouldShowOpenEditorsContext(widget, hasEligibleOpenEditors);
+	isEnabled(): Promise<boolean> | boolean {
+		return this._editorService.editors.filter(e => e instanceof FileEditorInput || e instanceof DiffEditorInput || e instanceof UntitledTextEditorInput).length > 0;
 	}
 
 	async asAttachment(): Promise<IChatRequestVariableEntry[]> {

@@ -133,9 +133,7 @@ export class ProgressService extends Disposable implements IProgressService {
 				promise
 			]).finally(() => {
 				const idx = this.windowProgressStack.indexOf(task);
-				if (idx !== -1) {
-					this.windowProgressStack.splice(idx, 1);
-				}
+				this.windowProgressStack.splice(idx, 1);
 				this.updateWindowProgress();
 			});
 		}, 150);

@@ -6,7 +6,6 @@
 import { spawn } from 'child_process';
 import { relative } from '../../../base/common/path.js';
 import { FileAccess } from '../../../base/common/network.js';
-import { rgDiskPath } from '../../../base/node/ripgrep.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
@@ -45,14 +44,14 @@ export class CSSDevelopmentService implements ICSSDevelopmentService {
 			return [];
 		}
 
-		const rgBinPath = await rgDiskPath();
+		const rg = await import('@vscode/ripgrep');
 		return await new Promise<string[]>((resolve) => {
 
 			const sw = StopWatch.create();
 
 			const chunks: Buffer[] = [];
 			const basePath = FileAccess.asFileUri('').fsPath;
-			const process = spawn(rgBinPath, ['-g', '**/*.css', '--files', '--no-ignore', basePath], {});
+			const process = spawn(rg.rgPath, ['-g', '**/*.css', '--files', '--no-ignore', basePath], {});
 
 			process.stdout.on('data', data => {
 				chunks.push(data);
