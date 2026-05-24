@@ -138,17 +138,6 @@ export class OpenAIEndpoint extends ChatEndpoint {
 		this._customHeaders = this._sanitizeCustomHeaders(_modelMetadata.requestHeaders);
 	}
 
-	/**
-	 * BYOK endpoints supply their own credential (`api-key` / `Authorization`)
-	 * via {@link getExtraHeaders}, so the chat fetcher must not fall back to the
-	 * CAPI Copilot bearer token nor raise a missing-key error for these requests.
-	 */
-	public readonly ownsAuthorization = true;
-
-	protected _isReservedHeader(lowerKey: string): boolean {
-		return OpenAIEndpoint._reservedHeaders.has(lowerKey);
-	}
-
 	private _sanitizeCustomHeaders(headers: Readonly<Record<string, string>> | undefined): Record<string, string> {
 		if (!headers) {
 			return {};
@@ -185,7 +174,7 @@ export class OpenAIEndpoint extends ChatEndpoint {
 			}
 
 			const lowerKey = key.toLowerCase();
-			if (this._isReservedHeader(lowerKey)) {
+			if (OpenAIEndpoint._reservedHeaders.has(lowerKey)) {
 				this.logService.warn(`[OpenAIEndpoint] Model '${this.modelMetadata.id}' attempted to override reserved header '${key}', skipping.`);
 				continue;
 			}

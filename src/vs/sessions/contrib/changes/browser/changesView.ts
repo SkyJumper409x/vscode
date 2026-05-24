@@ -55,7 +55,6 @@ import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../workbench/
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
-import { getChangesEditorLabels } from './changesEditorLabels.js';
 import { ChangesMultiDiffSourceResolver, getChangesMultiDiffSourceUri } from './changesMultiDiffSourceResolver.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
@@ -1076,12 +1075,10 @@ export class ChangesViewPane extends ViewPane {
 		};
 
 		const group = sideBySide ? SIDE_GROUP : ACTIVE_GROUP;
-		const labels = getChangesEditorLabels(item.uri, this.labelService);
 
 		if (isDeletion && originalUri) {
 			this.editorService.openEditor({
 				resource: originalUri,
-				...labels,
 				options: { preserveFocus, pinned, modal: { sidebar, navigation } }
 			}, group);
 			return;
@@ -1091,7 +1088,6 @@ export class ChangesViewPane extends ViewPane {
 			this.editorService.openEditor({
 				original: { resource: originalUri },
 				modified: { resource: modifiedFileUri },
-				...labels,
 				options: { preserveFocus, pinned, modal: { sidebar, navigation } }
 			}, group);
 			return;
@@ -1099,7 +1095,6 @@ export class ChangesViewPane extends ViewPane {
 
 		this.editorService.openEditor({
 			resource: modifiedFileUri,
-			...labels,
 			options: { preserveFocus, pinned, modal: { sidebar, navigation } }
 		}, group);
 	}

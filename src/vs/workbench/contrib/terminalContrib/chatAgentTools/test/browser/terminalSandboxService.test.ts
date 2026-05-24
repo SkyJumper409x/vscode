@@ -22,14 +22,13 @@ import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../
 import { Event, Emitter } from '../../../../../../base/common/event.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
-import { isWindows, OperatingSystem } from '../../../../../../base/common/platform.js';
+import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { IRemoteAgentEnvironment } from '../../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
-import { ISandboxDependencyStatus, ISandboxHelperService, IWindowsMxcFilesystemPolicy } from '../../../../../../platform/sandbox/common/sandboxHelperService.js';
-import { IWindowsMxcTerminalSandboxRuntime, WindowsMxcTerminalSandboxRuntime } from '../../../../../../platform/sandbox/common/terminalSandboxMxcRuntime.js';
-import { getTerminalSandboxRuntimeConfigurationForCommands } from '../../../../../../platform/sandbox/common/terminalSandboxRuntimeConfigurationPerOperation.js';
+import { ISandboxDependencyStatus, ISandboxHelperService } from '../../../../../../platform/sandbox/common/sandboxHelperService.js';
+import { getTerminalSandboxRuntimeConfigurationForCommands } from '../../common/terminalSandboxRuntimeConfigurationPerOperation.js';
 
 suite('TerminalSandboxService - network domains', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -53,10 +52,6 @@ suite('TerminalSandboxService - network domains', () => {
 			createFileCount++;
 			const contentString = content.toString();
 			createdFiles.set(uri.path, contentString);
-			createdFiles.set(uri.fsPath, contentString);
-			if (/^\/[a-zA-Z]:/.test(uri.path)) {
-				createdFiles.set(uri.path.slice(1).replace(/\//g, '\\'), contentString);
-			}
 			return {};
 		}
 
@@ -101,8 +96,8 @@ suite('TerminalSandboxService - network domains', () => {
 		}
 
 		async getEnvironment(): Promise<IRemoteAgentEnvironment | null> {
-			// Return a Linux environment so the default test expectations are
-			// independent of the local OS.
+			// Return a Linux environment to ensure tests pass on Windows
+			// (sandbox is not supported on Windows)
 			return this.remoteEnvironment;
 		}
 	}
@@ -162,23 +157,10 @@ suite('TerminalSandboxService - network domains', () => {
 			bubblewrapInstalled: true,
 			socatInstalled: true,
 		};
-		filesystemPolicy: IWindowsMxcFilesystemPolicy = {
-			readonlyPaths: ['c:\\tools\\node'],
-			readwritePaths: [],
-		};
-		environment = ['PATH=c:\\tools\\node;c:\\windows\\system32', 'PSHOME=c:\\program files\\powershell\\7'];
 
 		checkSandboxDependencies(): Promise<ISandboxDependencyStatus> {
 			this.callCount++;
 			return Promise.resolve(this.status);
-		}
-
-		getWindowsMxcFilesystemPolicy(): Promise<IWindowsMxcFilesystemPolicy> {
-			return Promise.resolve(this.filesystemPolicy);
-		}
-
-		getWindowsMxcEnvironment(): Promise<string[]> {
-			return Promise.resolve(this.environment);
 		}
 	}
 
@@ -209,13 +191,12 @@ suite('TerminalSandboxService - network domains', () => {
 
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IFileService, fileService);
-		instantiationService.stub(IEnvironmentService, <IEnvironmentService & { tmpDir?: URI; execPath?: string; window?: { id: number }; userHome?: URI; userDataPath?: string; workspaceStorageHome?: URI }>{
+		instantiationService.stub(IEnvironmentService, <IEnvironmentService & { tmpDir?: URI; execPath?: string; window?: { id: number }; userHome?: URI; userDataPath?: string }>{
 			_serviceBrand: undefined,
 			tmpDir: URI.file('/tmp'),
 			execPath: '/usr/bin/node',
 			userHome: URI.file('/home/local-user'),
 			userDataPath: '/custom/local-user-data',
-			workspaceStorageHome: URI.file('/local-workspace-storage'),
 			window: { id: windowId }
 		});
 		instantiationService.stub(ILogService, new NullLogService());
@@ -224,7 +205,6 @@ suite('TerminalSandboxService - network domains', () => {
 		instantiationService.stub(IWorkspaceContextService, workspaceContextService);
 		instantiationService.stub(ILifecycleService, lifecycleService);
 		instantiationService.stub(ISandboxHelperService, sandboxHelperService);
-		instantiationService.stub(IWindowsMxcTerminalSandboxRuntime, instantiationService.createInstance(WindowsMxcTerminalSandboxRuntime));
 	});
 
 	test('dependency checks should not be called for isEnabled', async () => {
@@ -546,7 +526,7 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(!config.filesystem.allowRead.includes('/app/node_modules/@vscode/ripgrep'), 'Sandbox config should not redundantly include app root child paths');
 	});
 
-	test('should reallow reads from workspace storage', async () => {
+	test('should allow reads and writes from workspace storage', async () => {
 		remoteAgentService.remoteEnvironment = {
 			...remoteAgentService.remoteEnvironment!,
 			workspaceStorageHome: URI.file('/home/user/.vscode-server/data/User/workspaceStorage')
@@ -564,6 +544,7 @@ suite('TerminalSandboxService - network domains', () => {
 
 		ok(config.filesystem.denyRead.includes('/home/user'), 'Sandbox config should deny arbitrary reads from the user home');
 		ok(config.filesystem.allowRead.includes(expectedWorkspaceStoragePath), 'Sandbox config should re-allow reads from workspace storage');
+		ok(config.filesystem.allowWrite.includes(expectedWorkspaceStoragePath), 'Sandbox config should allow writes to workspace storage');
 	});
 
 	test('should only add command-specific allow-list paths for the current command details', async () => {
@@ -1179,102 +1160,5 @@ suite('TerminalSandboxService - network domains', () => {
 
 		const wrappedCommand = (await sandboxService.wrapCommand(`echo 'hello'`)).command;
 		strictEqual((wrappedCommand.match(/\\''/g) ?? []).length, 2, 'Single quote escapes should be inserted for each embedded single quote');
-	});
-
-	test('should prefix wrapped command with ELECTRON_RUN_AS_NODE=1 when no remote env is available', async function () {
-		if (isWindows) {
-			// Local Windows uses MXC, which launches wxc-exec.exe directly instead of SRT through Electron-as-Node.
-			this.skip();
-		}
-		remoteAgentService.remoteEnvironment = null;
-		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
-		await sandboxService.getSandboxConfigPath();
-
-		const wrapped = await sandboxService.wrapCommand('echo test');
-		strictEqual(wrapped.isSandboxWrapped, true);
-		ok(wrapped.command.startsWith('ELECTRON_RUN_AS_NODE=1 '), `Local workbench should run Electron as Node. Actual: ${wrapped.command}`);
-	});
-
-	test('should omit ELECTRON_RUN_AS_NODE=1 prefix when a remote env is available', async () => {
-		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
-		await sandboxService.getSandboxConfigPath();
-
-		const wrapped = await sandboxService.wrapCommand('echo test');
-		strictEqual(wrapped.isSandboxWrapped, true);
-		ok(!wrapped.command.startsWith('ELECTRON_RUN_AS_NODE='), `Remote workbench should not add the env prefix. Actual: ${wrapped.command}`);
-	});
-
-	test('should route remote Windows sandbox commands through MXC', async () => {
-		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.Off);
-		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxWindowsEnabled, AgentSandboxEnabledValue.AllowNetwork);
-		remoteAgentService.remoteEnvironment = {
-			...remoteAgentService.remoteEnvironment!,
-			os: OperatingSystem.Windows,
-			appRoot: URI.file('/c:/app'),
-			execPath: 'c:\\app\\Code.exe',
-			tmpDir: URI.file('/c:/tmp'),
-			userHome: URI.file('/c:/Users/test'),
-			workspaceStorageHome: URI.file('/c:/Users/test/AppData/Roaming/Code/User/workspaceStorage'),
-			arch: 'arm64'
-		};
-		workspaceContextService.setWorkspaceFolders([URI.file('/c:/workspace-one')]);
-		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
-
-		const configPath = await sandboxService.getSandboxConfigPath();
-		const wrapped = await sandboxService.wrapCommand('echo test', false, 'pwsh.exe', URI.file('/c:/workspace-one'));
-
-		ok(configPath, 'Config path should be defined for remote Windows');
-		const configContent = createdFiles.get(configPath);
-		ok(configContent, 'Config file should be created for remote Windows');
-		const config = JSON.parse(configContent);
-
-		strictEqual(wrapped.isSandboxWrapped, true);
-		ok(wrapped.command.includes('node_modules\\@microsoft\\mxc-sdk\\bin\\arm64\\wxc-exec.exe'), `Wrapped command should use the MXC Windows executable. Actual: ${wrapped.command}`);
-		ok(wrapped.command.includes(configPath), `Wrapped command should pass the MXC config path. Actual: ${wrapped.command}`);
-		strictEqual(config.version, '0.4.0-alpha');
-		strictEqual(config.containment, 'process');
-		strictEqual(config.process.commandLine, 'echo test');
-		strictEqual(config.process.cwd, 'c:\\workspace-one');
-		ok(config.process.env.includes('PATH=c:\\tools\\node;c:\\windows\\system32'), 'PATH should be injected into the MXC process env');
-		ok(config.process.env.includes('PSHOME=c:\\program files\\powershell\\7'), 'PSHOME should be injected into the MXC process env');
-		ok(config.filesystem.readwritePaths.includes('c:\\workspace-one'), 'Workspace folder should be writable in the MXC config');
-		ok(config.filesystem.readwritePaths.some((path: string) => path.includes('tmp_vscode_7')), 'Sandbox temp dir should be writable in the MXC config');
-		ok(config.filesystem.readonlyPaths.includes('c:\\app'), 'VS Code app root should be readable in the MXC config');
-		ok(config.filesystem.readonlyPaths.includes('c:\\tools\\node'), 'MXC available tools policy should add tool paths to readonly paths');
-		ok(!config.filesystem.deniedPaths.includes('c:\\Users\\test'), 'User home should not be denied by default in the MXC config on Windows');
-	});
-
-	test('should keep remote Windows sandbox disabled unless Windows sandbox setting allows network', async () => {
-		remoteAgentService.remoteEnvironment = {
-			...remoteAgentService.remoteEnvironment!,
-			os: OperatingSystem.Windows,
-			appRoot: URI.file('/c:/app'),
-			execPath: 'c:\\app\\Code.exe',
-			tmpDir: URI.file('/c:/tmp'),
-			userHome: URI.file('/c:/Users/test'),
-			workspaceStorageHome: URI.file('/c:/Users/test/AppData/Roaming/Code/User/workspaceStorage'),
-			arch: 'x64'
-		};
-		workspaceContextService.setWorkspaceFolders([URI.file('/c:/workspace-one')]);
-		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
-
-		strictEqual(await sandboxService.isEnabled(), false, 'Windows sandbox should be disabled when the Windows sandbox setting is off');
-		strictEqual(await sandboxService.getSandboxConfigPath(), undefined, 'Windows sandbox config should not be created unless the Windows setting is enabled');
-		const prereqs = await sandboxService.checkForSandboxingPrereqs();
-		strictEqual(prereqs.enabled, false, 'Prereq checks should report Windows sandbox disabled when the Windows setting is disabled');
-		strictEqual(prereqs.failedCheck, undefined, 'No prereq check should fail when Windows sandboxing is disabled');
-	});
-
-	test('should place sandbox temp dir under the local data folder when no remote env is available', async function () {
-		if (isWindows) {
-			// Local Windows uses MXC, which does not use the POSIX local temp-dir path shape asserted below.
-			this.skip();
-		}
-		remoteAgentService.remoteEnvironment = null;
-		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
-		await sandboxService.getSandboxConfigPath();
-
-		const expectedTempDir = URI.joinPath(URI.file('/home/local-user'), productService.dataFolderName, 'tmp', `tmp_vscode_${windowId}`);
-		strictEqual(sandboxService.getTempDir()?.path, expectedTempDir.path, 'Local workbench should fall back to the native user home + dataFolderName for the temp dir');
 	});
 });

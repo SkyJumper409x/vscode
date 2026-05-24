@@ -10,6 +10,8 @@ import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/c
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { URI } from '../../../../base/common/uri.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { EditorsOrder, IEditorIdentifier } from '../../../../workbench/common/editor.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { GroupsOrder, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
@@ -22,6 +24,7 @@ import { IChatEditingService } from '../../../../workbench/contrib/chat/common/e
 import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
 import { getSessionEditorComments } from './sessionEditorComments.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export const submitFeedbackActionId = 'agentFeedbackEditor.action.submit';
 export const navigatePreviousFeedbackActionId = 'agentFeedbackEditor.action.navigatePrevious';
@@ -97,12 +100,29 @@ class SubmitFeedbackAction extends AgentFeedbackEditorAction {
 
 	override async runWithSession(accessor: ServicesAccessor, sessionResource: URI): Promise<void> {
 		const chatWidgetService = accessor.get(IChatWidgetService);
+		const agentFeedbackService = accessor.get(IAgentFeedbackService);
+		const editorService = accessor.get(IEditorService);
 		const logService = accessor.get(ILogService);
 
 		const widget = chatWidgetService.getWidgetBySessionResource(sessionResource);
 		if (!widget) {
 			logService.error('[AgentFeedback] Cannot submit feedback: no chat widget found for session', sessionResource.toString());
 			return;
+		}
+
+		// Close all editors belonging to the session resource
+		const editorsToClose: IEditorIdentifier[] = [];
+		for (const { editor, groupId } of editorService.getEditors(EditorsOrder.SEQUENTIAL)) {
+			const candidates = getActiveResourceCandidates(editor);
+			const belongsToSession = candidates.some(uri =>
+				isEqual(agentFeedbackService.getMostRecentSessionForResource(uri), sessionResource)
+			);
+			if (belongsToSession) {
+				editorsToClose.push({ editor, groupId });
+			}
+		}
+		if (editorsToClose.length) {
+			await editorService.closeEditors(editorsToClose);
 		}
 
 		await widget.acceptInput('/act-on-feedback');
@@ -189,8 +209,10 @@ class SubmitActiveSessionFeedbackAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const sessionManagementService = accessor.get(ISessionsManagementService);
+		const configurationService = accessor.get(IConfigurationService);
 		const agentFeedbackService = accessor.get(IAgentFeedbackService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
+		const editorService = accessor.get(IEditorService);
 		const logService = accessor.get(ILogService);
 
 		const activeSession = sessionManagementService.activeSession.get();
@@ -208,6 +230,23 @@ class SubmitActiveSessionFeedbackAction extends Action2 {
 		if (!widget) {
 			logService.error('[AgentFeedback] Cannot submit feedback: no chat widget found for session', sessionResource.toString());
 			return;
+		}
+
+		// Close all editors belonging to the session resource
+		if (configurationService.getValue('workbench.editor.useModal') === 'all') {
+			const editorsToClose: IEditorIdentifier[] = [];
+			for (const { editor, groupId } of editorService.getEditors(EditorsOrder.SEQUENTIAL)) {
+				const candidates = getActiveResourceCandidates(editor);
+				const belongsToSession = candidates.some(uri =>
+					isEqual(agentFeedbackService.getMostRecentSessionForResource(uri), sessionResource)
+				);
+				if (belongsToSession) {
+					editorsToClose.push({ editor, groupId });
+				}
+			}
+			if (editorsToClose.length) {
+				await editorService.closeEditors(editorsToClose);
+			}
 		}
 
 		await widget.acceptInput('/act-on-feedback');

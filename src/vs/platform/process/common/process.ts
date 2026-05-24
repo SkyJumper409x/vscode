@@ -47,5 +47,5 @@ export interface IProcessService {
 
 	getSystemStatus(): Promise<string>;
 	getSystemInfo(): Promise<SystemInfo>;
-	getPerformanceInfo(options?: { skipCache?: boolean; unbounded?: boolean }): Promise<PerformanceInfo>;
+	getPerformanceInfo(): Promise<PerformanceInfo>;
 }

@@ -55,7 +55,7 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 		this._register(this.copilotCLIAgents.onDidChangeAgents(() => this._onDidChange.fire()));
 	}
 
-	async provideChatSessionCustomizations(_sessionResource: vscode.Uri, token: vscode.CancellationToken): Promise<vscode.ChatSessionCustomizationItem[]> {
+	async provideChatSessionCustomizations(token: vscode.CancellationToken): Promise<vscode.ChatSessionCustomizationItem[]> {
 		const [agents, instructions, skills, hooks, plugins] = await Promise.all([
 			this.getAgentItems(token),
 			this.getInstructionItems(token),
@@ -88,14 +88,13 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 	 */
 	private async getAgentItems(_token: vscode.CancellationToken): Promise<vscode.ChatSessionCustomizationItem[]> {
 		const agentInfos = await this.copilotCLIAgents.getAgents();
-		return agentInfos.map(({ agent, sourceUri, pluginUri, extensionId, source }) => ({
+		return agentInfos.map(({ agent, sourceUri, pluginUri, extensionId }) => ({
 			uri: sourceUri,
 			type: vscode.ChatSessionCustomizationType.Agent,
 			name: agent.displayName || agent.name,
 			description: agent.description,
 			extensionId,
-			pluginUri,
-			source
+			pluginUri
 		}));
 	}
 
@@ -138,7 +137,6 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 				name: basename(uri),
 				description: undefined,
 				groupKey: 'agent-instructions',
-				source: 'local', // these are surfaced by the extension, even if they come from the workspace
 				extensionId: undefined,
 				pluginUri: undefined
 			});
@@ -174,8 +172,7 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 					badge,
 					badgeTooltip,
 					extensionId: instruction.extensionId,
-					pluginUri: instruction.pluginUri,
-					source: instruction.source
+					pluginUri: instruction.pluginUri
 				});
 			} else {
 				items.push({
@@ -185,8 +182,7 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 					description,
 					groupKey: 'on-demand-instructions',
 					extensionId: instruction.extensionId,
-					pluginUri: instruction.pluginUri,
-					source: instruction.source
+					pluginUri: instruction.pluginUri
 				});
 			}
 		}
@@ -205,7 +201,6 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 			description: s.description,
 			extensionId: s.extensionId,
 			pluginUri: s.pluginUri,
-			source: s.source
 		}));
 	}
 
@@ -221,7 +216,6 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 			description: undefined,
 			extensionId: h.extensionId,
 			pluginUri: h.pluginUri,
-			source: h.source
 		}));
 	}
 
@@ -236,7 +230,6 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 			description: undefined,
 			extensionId: undefined,
 			pluginUri: undefined,
-			source: 'plugin'
 		}));
 	}
 }

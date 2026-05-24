@@ -593,14 +593,10 @@ async function promptForRemoteFolder(
 	if (!workspace) {
 		return;
 	}
-	const folderUri = workspace.folders[0]?.root;
-	if (!folderUri) {
-		return;
-	}
 
 	sessionsManagementService.openNewSessionView();
 	const view = await viewsService.openView<NewChatViewPane>(SessionsViewId, true);
-	view?.selectWorkspace(folderUri);
+	view?.selectWorkspace({ providerId: provider.id, workspace });
 }
 
 registerAction2(class extends Action2 {
@@ -943,14 +939,10 @@ async function promptForTunnelFolder(
 	if (!workspace) {
 		return;
 	}
-	const folderUri = workspace.folders[0]?.root;
-	if (!folderUri) {
-		return;
-	}
 
 	sessionsManagementService.openNewSessionView();
 	const view = await viewsService.openView<NewChatViewPane>(SessionsViewId, true);
-	view?.selectWorkspace(folderUri);
+	view?.selectWorkspace({ providerId: provider.id, workspace });
 }
 
 registerAction2(class extends Action2 {

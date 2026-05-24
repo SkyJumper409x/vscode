@@ -962,7 +962,7 @@ export interface IDiffEditorBaseOptions {
 	/**
 	 * Diff Algorithm
 	*/
-	diffAlgorithm?: 'legacy' | 'advanced' | 'advanced-external' | 'advanced-wasm';
+	diffAlgorithm?: 'legacy' | 'advanced';
 
 	/**
 	 * Whether the diff editor aria label should be verbose.

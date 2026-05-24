@@ -3,22 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { gulp, rename, filter, jsonEditor } from './lib/gulp/facade.ts';
+import gulp from 'gulp';
 import * as path from 'path';
 import * as cp from 'child_process';
 import es from 'event-stream';
 import * as util from './lib/util.ts';
 import { getVersion } from './lib/getVersion.ts';
-import * as task from './lib/gulp/task.ts';
+import * as task from './lib/task.ts';
 import * as optimize from './lib/optimize.ts';
 import { readISODate } from './lib/date.ts';
 import product from '../product.json' with { type: 'json' };
+import rename from 'gulp-rename';
+import filter from 'gulp-filter';
 import { getProductionDependencies } from './lib/dependencies.ts';
 import vfs from 'vinyl-fs';
 import packageJson from '../package.json' with { type: 'json' };
 import { compileBuildWithManglingTask } from './gulpfile.compile.ts';
 import { copyCodiconsTask } from './lib/compilation.ts';
 import * as extensions from './lib/extensions.ts';
+import jsonEditor from 'gulp-json-editor';
 import buildfile from './buildfile.ts';
 
 const REPO_ROOT = path.dirname(import.meta.dirname);
@@ -163,7 +166,7 @@ const minifyVSCodeWebTask = task.define('minify-vscode-web-OLD', task.series(
 	util.rimraf('out-vscode-web-min'),
 	optimize.minifyTask('out-vscode-web', `https://main.vscode-cdn.net/sourcemaps/${commit}/core`)
 ));
-task.task(minifyVSCodeWebTask);
+gulp.task(minifyVSCodeWebTask);
 
 // esbuild-based tasks (new)
 const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
@@ -226,7 +229,7 @@ const compileWebExtensionsBuildTask = task.define('compile-web-extensions-build'
 	task.define('bundle-marketplace-web-extensions-build', () => extensions.packageMarketplaceExtensionsStream(true).pipe(gulp.dest('.build/web'))),
 	task.define('bundle-web-extension-media-build', () => extensions.buildExtensionMedia(false, '.build/web/extensions')),
 ));
-task.task(compileWebExtensionsBuildTask);
+gulp.task(compileWebExtensionsBuildTask);
 
 const dashed = (str: string) => (str ? `-${str}` : ``);
 
@@ -241,11 +244,11 @@ const dashed = (str: string) => (str ? `-${str}` : ``);
 		util.rimraf(path.join(BUILD_ROOT, destinationFolderName)),
 		packageTask(sourceFolderName, destinationFolderName)
 	));
-	task.task(vscodeWebTaskCI);
+	gulp.task(vscodeWebTaskCI);
 
 	const vscodeWebTask = task.define(`vscode-web${dashed(minified)}`, task.series(
 		compileBuildWithManglingTask,
 		vscodeWebTaskCI
 	));
-	task.task(vscodeWebTask);
+	gulp.task(vscodeWebTask);
 });

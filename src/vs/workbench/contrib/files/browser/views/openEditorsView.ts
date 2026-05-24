@@ -209,8 +209,7 @@ export class OpenEditorsView extends ViewPane {
 			identityProvider: { getId: (element: OpenEditor | IEditorGroup) => element instanceof OpenEditor ? element.getId() : element.id.toString() },
 			dnd: this.dnd,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
-			accessibilityProvider: new OpenEditorsAccessibilityProvider(),
-			openOnSingleClick: true
+			accessibilityProvider: new OpenEditorsAccessibilityProvider()
 		}) as WorkbenchList<OpenEditor | IEditorGroup>;
 		this._register(this.list);
 		this._register(this.listLabels);

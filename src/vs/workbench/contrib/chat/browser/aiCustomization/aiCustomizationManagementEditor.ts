@@ -46,7 +46,8 @@ import {
 	AI_CUSTOMIZATION_MANAGEMENT_SIDEBAR_WIDTH_KEY,
 	AI_CUSTOMIZATION_MANAGEMENT_SELECTED_SECTION_KEY,
 	AICustomizationManagementSection,
-	AICustomizationSource,
+	AICustomizationPromptsStorage,
+	BUILTIN_STORAGE,
 	CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR,
 	CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION,
 	CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_HARNESS,
@@ -66,7 +67,7 @@ import { INewPromptOptions, NEW_PROMPT_COMMAND_ID, NEW_INSTRUCTIONS_COMMAND_ID, 
 import { showConfigureHooksQuickPick } from '../promptSyntax/hookActions.js';
 import { resolveWorkspaceTargetDirectory, resolveUserTargetDirectory } from './customizationCreatorService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { createTextBufferFactoryFromSnapshot } from '../../../../../editor/common/model/textModel.js';
@@ -91,6 +92,7 @@ import { ICustomizationHarnessService, matchesWorkspaceSubpath } from '../../com
 import { ChatConfiguration } from '../../common/constants.js';
 import { AICustomizationWelcomePage } from './aiCustomizationWelcomePage.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { SessionType } from '../../common/chatSessionsService.js';
 
 const $ = DOM.$;
 
@@ -304,7 +306,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private readonly builtinEditingSessions = new Map<string, { model: ITextModel; originalContent: string }>();
 	private currentEditingUri: URI | undefined;
 	private currentEditingProjectRoot: URI | undefined;
-	private currentEditingSource: AICustomizationSource | undefined;
+	private currentEditingStorage: AICustomizationPromptsStorage | undefined;
 	private currentEditingPromptType: PromptsType | undefined;
 	private currentEditingReadOnly = false;
 	private currentModelRef: IReference<IResolvedTextEditorModel> | undefined;
@@ -505,7 +507,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 * When disabled, the editor behaves as if "Local" is always selected.
 	 */
 	private get isHarnessSelectorEnabled(): boolean {
-		return false; //this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationHarnessSelectorEnabled) !== false;
+		return this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationHarnessSelectorEnabled) !== false;
 	}
 
 	/**
@@ -514,9 +516,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 * section, the first visible section is selected instead.
 	 */
 	private rebuildVisibleSections(): void {
-		const activeId = this.harnessService.activeHarness.get();
-		const descriptor = this.harnessService.findHarnessById(activeId);
-		const hidden = new Set(descriptor?.hiddenSections ?? []);
+		let hidden: Set<string>;
+		if (this.isHarnessSelectorEnabled) {
+			const activeId = this.harnessService.activeHarness.get();
+			const descriptor = this.harnessService.findHarnessById(activeId);
+			hidden = new Set(descriptor?.hiddenSections ?? []);
+		} else {
+			hidden = new Set(); // Local harness has no hidden sections
+		}
 
 		this.sections.length = 0;
 		for (const s of this.allSections) {
@@ -589,8 +596,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 		// React to harness changes — rebuild visible sections and refresh counts.
 		// Also track availableHarnesses to handle agent registration/unregistration.
 		this.editorDisposables.add(autorun(reader => {
-			this.harnessService.availableHarnesses.read(reader);
+			const available = this.harnessService.availableHarnesses.read(reader);
 			const activeId = this.harnessService.activeHarness.read(reader);
+
+			// If the active harness is no longer available, fall back to the default
+			if (!available.some(h => h.id === activeId) && available.length > 0) {
+				this.harnessService.setActiveHarness(available[0].id);
+				return; // setActiveHarness will trigger another autorun cycle
+			}
+
 			this.harnessContextKey.set(activeId);
 			this.rebuildVisibleSections();
 			this.ensureHarnessDropdown();
@@ -607,7 +621,19 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this._previousActiveHarnessId = activeId;
 		}));
 
+		// When the harness selector setting is off, lock to Local harness.
+		// In Sessions (single CLI harness) the dropdown is already hidden and
+		// setActiveHarness(VSCode) is a safe no-op since the CLI harness
+		// remains active — filtering stays correct for that window.
+		if (!this.isHarnessSelectorEnabled) {
+			this.harnessService.setActiveHarness(SessionType.Local);
+		}
 		this.editorDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationHarnessSelectorEnabled)) {
+				if (!this.isHarnessSelectorEnabled) {
+					this.harnessService.setActiveHarness(SessionType.Local);
+				}
+			}
 			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled)) {
 				this.onStructuredPreviewSettingChanged();
 			}
@@ -632,7 +658,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}));
 
 		// Harness dropdown (shown when multiple harnesses available)
-		//this.createHarnessDropdown(headerRow);
+		this.createHarnessDropdown(headerRow);
 		this.updateHomeButtonStyle();
 	}
 
@@ -721,7 +747,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		const actions = harnesses.map(h => {
 			const action = new Action(h.id, h.label, ThemeIcon.asClassName(h.icon), true, () => {
-				this.harnessService.setActiveSession(this.harnessService.getSessionResourceForHarness(h.id));
+				this.harnessService.setActiveHarness(h.id);
 			});
 			action.checked = h.id === activeId;
 			return action;
@@ -812,12 +838,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.telemetryService.publicLog2<CustomizationEditorItemSelectedEvent, CustomizationEditorItemSelectedClassification>('chatCustomizationEditor.itemSelected', {
 				section: this.selectedSection ?? 'welcome',
 				promptType: item.promptType,
-				storage: item.source ?? 'external',
+				storage: item.storage ?? 'external',
 			});
-			const source = item.source;
-			const isWorkspaceFile = source === AICustomizationSources.local;
-			const isReadOnly = !source || source === AICustomizationSources.extension || source === AICustomizationSources.plugin || source === AICustomizationSources.builtin;
-			this.showEmbeddedEditor(item.uri, item.name, item.promptType, source ?? AICustomizationSources.builtin, isWorkspaceFile, isReadOnly);
+			const storage = item.storage;
+			const isWorkspaceFile = storage === PromptsStorage.local;
+			const isReadOnly = !storage || storage === PromptsStorage.extension || storage === PromptsStorage.plugin || storage === BUILTIN_STORAGE;
+			this.showEmbeddedEditor(item.uri, item.name, item.promptType, storage ?? BUILTIN_STORAGE, isWorkspaceFile, isReadOnly);
 		}));
 
 		// Handle create actions - AI-guided creation
@@ -1549,7 +1575,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.updateEditorDisplayMode();
 	}
 
-	private async showEmbeddedEditor(uri: URI, displayName: string, promptType: PromptsType, source: AICustomizationSource, isWorkspaceFile = false, isReadOnly = false): Promise<void> {
+	private async showEmbeddedEditor(uri: URI, displayName: string, promptType: PromptsType, storage: AICustomizationPromptsStorage, isWorkspaceFile = false, isReadOnly = false): Promise<void> {
 		this.currentModelRef?.dispose();
 		this.currentModelRef = undefined;
 		this.editorModelChangeDisposables.clear();
@@ -1557,7 +1583,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorPreviewRenderScheduler.cancel();
 		this.currentEditingUri = uri;
 		this.currentEditingProjectRoot = isWorkspaceFile ? this.workspaceService.getActiveProjectRoot() : undefined;
-		this.currentEditingSource = source;
+		this.currentEditingStorage = storage;
 		this.currentEditingPromptType = promptType;
 		this.currentEditingReadOnly = isReadOnly;
 		this.editorDisplayMode = this.isStructuredPreviewSupported(promptType) ? 'preview' : 'raw';
@@ -1572,7 +1598,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.updateContentVisibility();
 
 		try {
-			if (source === AICustomizationSources.builtin && (promptType === PromptsType.prompt || promptType === PromptsType.skill)) {
+			if (storage === BUILTIN_STORAGE && (promptType === PromptsType.prompt || promptType === PromptsType.skill)) {
 				const session = await this.getOrCreateBuiltinEditingSession(uri);
 
 				if (!isEqual(this.currentEditingUri, uri)) {
@@ -1653,11 +1679,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (backgroundSaveRequest) {
 			this.telemetryService.publicLog2<CustomizationEditorSaveItemEvent, CustomizationEditorSaveItemClassification>('chatCustomizationEditor.saveItem', {
 				promptType: this.currentEditingPromptType ?? '',
-				storage: String(this.currentEditingSource ?? ''),
+				storage: String(this.currentEditingStorage ?? ''),
 				saveTarget: 'existing',
 			});
 		}
-		if (fileUri && this.currentEditingSource === AICustomizationSources.builtin) {
+		if (fileUri && this.currentEditingStorage === BUILTIN_STORAGE) {
 			this.disposeBuiltinEditingSession(fileUri);
 		}
 
@@ -1665,7 +1691,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.currentModelRef = undefined;
 		this.currentEditingUri = undefined;
 		this.currentEditingProjectRoot = undefined;
-		this.currentEditingSource = undefined;
+		this.currentEditingStorage = undefined;
 		this.currentEditingPromptType = undefined;
 		this.currentEditingReadOnly = false;
 		this.editorDisplayMode = 'preview';
@@ -1727,7 +1753,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private createBuiltinPromptSaveRequest(target: ISaveTargetQuickPickItem): IBuiltinPromptSaveRequest | undefined {
 		const sourceUri = this.currentEditingUri;
 		const promptType = this.currentEditingPromptType;
-		if (!sourceUri || this.currentEditingSource !== AICustomizationSources.builtin || (promptType !== PromptsType.prompt && promptType !== PromptsType.skill) || !target.folder || target.target === 'cancel') {
+		if (!sourceUri || this.currentEditingStorage !== BUILTIN_STORAGE || (promptType !== PromptsType.prompt && promptType !== PromptsType.skill) || !target.folder || target.target === 'cancel') {
 			return;
 		}
 
@@ -1747,7 +1773,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private createExistingCustomizationSaveRequest(): IExistingCustomizationSaveRequest | undefined {
-		if (!this._editorContentChanged || this.currentEditingSource === AICustomizationSources.builtin || !this.currentEditingUri) {
+		if (!this._editorContentChanged || this.currentEditingStorage === BUILTIN_STORAGE || !this.currentEditingUri) {
 			return undefined;
 		}
 
@@ -1842,7 +1868,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				if (backgroundSaveRequest) {
 					this.telemetryService.publicLog2<CustomizationEditorSaveItemEvent, CustomizationEditorSaveItemClassification>('chatCustomizationEditor.saveItem', {
 						promptType: this.currentEditingPromptType ?? '',
-						storage: String(this.currentEditingSource ?? ''),
+						storage: String(this.currentEditingStorage ?? ''),
 						saveTarget: selection.target,
 					});
 				}
@@ -1886,7 +1912,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private shouldShowBuiltinSaveAction(): boolean {
 		return this._editorContentChanged
-			&& this.currentEditingSource === AICustomizationSources.builtin
+			&& this.currentEditingStorage === BUILTIN_STORAGE
 			&& (this.currentEditingPromptType === PromptsType.prompt || this.currentEditingPromptType === PromptsType.skill);
 	}
 
@@ -1916,7 +1942,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			await this.saveBuiltinPromptCopy(saveRequest);
 			this.telemetryService.publicLog2<CustomizationEditorSaveItemEvent, CustomizationEditorSaveItemClassification>('chatCustomizationEditor.saveItem', {
 				promptType: this.currentEditingPromptType ?? '',
-				storage: String(this.currentEditingSource ?? ''),
+				storage: String(this.currentEditingStorage ?? ''),
 				saveTarget: target.target,
 			});
 
@@ -1972,7 +1998,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return undefined;
 		}
 
-		if (this.currentEditingSource === AICustomizationSources.builtin) {
+		if (this.currentEditingStorage === BUILTIN_STORAGE) {
 			return this.builtinEditingSessions.get(this.currentEditingUri.toString())?.model;
 		}
 
@@ -2057,7 +2083,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return false;
 		}
 
-		return (this.currentEditingSource === AICustomizationSources.builtin && (promptType === PromptsType.prompt || promptType === PromptsType.skill))
+		return (this.currentEditingStorage === BUILTIN_STORAGE && (promptType === PromptsType.prompt || promptType === PromptsType.skill))
 			|| !this.currentEditingReadOnly;
 	}
 

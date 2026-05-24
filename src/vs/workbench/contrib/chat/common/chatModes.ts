@@ -21,7 +21,7 @@ import { ChatContextKeys } from './actions/chatContextKeys.js';
 import { getChatSessionType, LocalChatSessionUri } from './model/chatUri.js';
 import { ChatConfiguration, ChatModeKind } from './constants.js';
 import { IHandOff } from './promptSyntax/promptFileParser.js';
-import { IAgentSource, ICustomAgent, ICustomAgentVisibility, isCustomAgentVisibility, PromptsStorage } from './promptSyntax/service/promptsService.js';
+import { IAgentSource, ICustomAgent, ICustomAgentVisibility, IPromptsService, isCustomAgentVisibility, matchesSessionType, PromptsStorage } from './promptSyntax/service/promptsService.js';
 import { ICustomizationHarnessService } from './customizationHarnessService.js';
 import { PromptFileSource, Target } from './promptSyntax/promptTypes.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -82,6 +82,7 @@ class ChatModes extends Disposable implements IChatModes {
 
 	constructor(
 		private readonly sessionResource: URI,
+		@IPromptsService private readonly promptsService: IPromptsService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILogService private readonly logService: ILogService,
@@ -100,9 +101,12 @@ class ChatModes extends Disposable implements IChatModes {
 		this.loadCachedModes();
 
 		this._pendingRefresh = this.refreshCustomPromptModes(true);
+		this._register(this.promptsService.onDidChangeCustomAgents(() => {
+			this._pendingRefresh = this.refreshCustomPromptModes(true);
+		}));
 		// When the harness service is the source, also react to its change events for our session type.
 		this._register(this.customizationHarnessService.onDidChangeCustomAgents(e => {
-			if (e.sessionType === sessionType) {
+			if (e.sessionType === sessionType && this.useChatSessionCustomizationsForCustomAgents()) {
 				this._pendingRefresh = this.refreshCustomPromptModes(true);
 			}
 		}));
@@ -112,6 +116,10 @@ class ChatModes extends Disposable implements IChatModes {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.AgentEnabled)) {
 				this._onDidChange.fire();
+			}
+			if (e.affectsConfiguration(ChatConfiguration.UseChatSessionCustomizationsForCustomAgents)) {
+				// Source switched: re-fetch from the now-active provider.
+				this._pendingRefresh = this.refreshCustomPromptModes(true);
 			}
 		}));
 		let didHaveToolsAgent = this.chatAgentService.hasToolsAgent;
@@ -136,7 +144,7 @@ class ChatModes extends Disposable implements IChatModes {
 	}
 
 	findModeByName(name: string): IChatMode | undefined {
-		return this.getBuiltinModes().find(mode => mode.name.get() === name) ?? this.getCustomModes().find(mode => mode.name.get() === name || mode.id === name);
+		return this.getBuiltinModes().find(mode => mode.name.get() === name) ?? this.getCustomModes().find(mode => mode.name.get() === name);
 	}
 
 	waitForRefresh(): Promise<void> {
@@ -204,9 +212,22 @@ class ChatModes extends Disposable implements IChatModes {
 		}
 	}
 
+	private useChatSessionCustomizationsForCustomAgents(): boolean {
+		return this.configurationService.getValue<boolean>(ChatConfiguration.UseChatSessionCustomizationsForCustomAgents) === true;
+	}
+
+	private async computeCustomAgents(): Promise<readonly ICustomAgent[]> {
+		const useHarness = this.useChatSessionCustomizationsForCustomAgents();
+		if (useHarness) {
+			return await this.customizationHarnessService.getCustomAgents(getChatSessionType(this.sessionResource), CancellationToken.None);
+		}
+		const sessionType = getChatSessionType(this.sessionResource);
+		return (await this.promptsService.getCustomAgents(CancellationToken.None)).filter(mode => matchesSessionType(mode.sessionTypes, sessionType));
+	}
+
 	private async refreshCustomPromptModes(fireChangeEvent?: boolean): Promise<void> {
 		try {
-			const customModes = await this.customizationHarnessService.getCustomAgents(this.sessionResource, CancellationToken.None);
+			const customModes = await this.computeCustomAgents();
 
 			// Create a new set of mode instances, reusing existing ones where possible
 			const seenUris = new Set<string>();

@@ -605,7 +605,6 @@ class MainThreadChatSessionItem implements IChatSessionItem {
 	readonly changes?: IChatSessionItem['changes'];
 	readonly archived?: boolean;
 	readonly metadata?: { readonly [key: string]: unknown };
-	readonly legacyResource?: URI;
 
 	constructor(dto: Dto<IChatSessionItem>, model: IChatModel | undefined, detailOverrides: IChatDetail | undefined) {
 		this.resource = URI.revive(dto.resource);
@@ -616,7 +615,6 @@ class MainThreadChatSessionItem implements IChatSessionItem {
 		this.tooltip = reviveMarkdownString(dto.tooltip);
 		this.archived = dto.archived;
 		this.metadata = dto.metadata;
-		this.legacyResource = dto.legacyResource ? URI.revive(dto.legacyResource) : undefined;
 
 		this.description = (model && getInProgressSessionDescription(model)) ?? reviveMarkdownString(dto.description);
 		this.status = (model && getSessionStatusForModel(model)) ?? dto.status;
@@ -649,8 +647,7 @@ class MainThreadChatSessionItem implements IChatSessionItem {
 			&& stringOrMarkdownEqual(this.badge, other.badge)
 			&& stringOrMarkdownEqual(this.tooltip, other.tooltip)
 			&& this.archived === other.archived
-			&& equals(this.metadata, other.metadata)
-			&& isEqual(this.legacyResource, other.legacyResource);
+			&& equals(this.metadata, other.metadata);
 	}
 }
 

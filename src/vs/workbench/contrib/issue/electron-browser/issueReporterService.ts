@@ -79,7 +79,7 @@ export class IssueReporter extends BaseIssueReporterService {
 		applyZoom(this.data.zoomLevel, this.window);
 		this.updateExperimentsInfo(this.data.experiments);
 		this.updateRestrictedMode(this.data.restrictedMode);
-		this.updateInstallationPureMode(this.data.isInstallationPure);
+		this.updateUnsupportedMode(this.data.isUnsupported);
 	}
 
 	private async checkForUpdates(): Promise<void> {
@@ -357,8 +357,8 @@ export class IssueReporter extends BaseIssueReporterService {
 		this.issueReporterModel.update({ restrictedMode });
 	}
 
-	private updateInstallationPureMode(isInstallationPure: boolean) {
-		this.issueReporterModel.update({ isInstallationPure });
+	private updateUnsupportedMode(isUnsupported: boolean) {
+		this.issueReporterModel.update({ isUnsupported });
 	}
 
 	private updateExperimentsInfo(experimentInfo: string | undefined) {

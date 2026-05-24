@@ -6,7 +6,7 @@
 import cp from 'child_process';
 import es from 'event-stream';
 import fs from 'fs';
-import { filter } from './lib/gulp/facade.ts';
+import filter from 'gulp-filter';
 import pall from 'p-all';
 import path from 'path';
 import VinylFile from 'vinyl';

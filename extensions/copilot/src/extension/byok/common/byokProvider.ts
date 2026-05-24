@@ -157,7 +157,7 @@ export function byokKnownModelToAPIInfo(providerName: string, id: string, capabi
 		// the model picker.
 		family: id,
 		tooltip: `${capabilities.name} is contributed via the ${providerName} provider.`,
-		multiplierNumeric: undefined,
+		multiplierNumeric: 0,
 		isUserSelectable: true,
 		capabilities: {
 			toolCalling: capabilities.toolCalling,

@@ -8,39 +8,12 @@ import zenuml from '@mermaid-js/mermaid-zenuml';
 import mermaid, { MermaidConfig } from 'mermaid';
 import { iconPacks } from './iconPackConfig';
 import { ClickDragMode, MermaidExtensionConfig, ShowControlsMode } from './config';
-import { vsCodeMermaidTheme, VsCodeMermaidThemeTracker } from './vsCodeTheme';
-
-/**
- * Creates the `<pre class="mermaid-error">` node shown when a diagram fails to render.
- */
-export function createMermaidErrorElement(error: unknown): HTMLElement {
-	const message = error instanceof Error ? error.message : String(error);
-	const errorMessageNode = document.createElement('pre');
-	errorMessageNode.className = 'mermaid-error';
-	errorMessageNode.innerText = message;
-	return errorMessageNode;
-}
-
-/**
- * Merges `mermaidError: true` into the element's `data-vscode-context` so that mermaid-specific
- * context menu commands that don't make sense on an unrendered diagram (like reset pan/zoom)
- * can be hidden.
- */
-export function markVsCodeContextAsError(el: HTMLElement): void {
-	let context: Record<string, unknown>;
-	try {
-		context = JSON.parse(el.dataset.vscodeContext || '{}');
-	} catch {
-		context = {};
-	}
-	el.dataset.vscodeContext = JSON.stringify({ ...context, mermaidError: true });
-}
 
 function renderMermaidElement(
 	mermaidContainer: HTMLElement,
 	usedIds: Set<string>,
-	writeOut: (mermaidContainer: HTMLElement, content: string, isError: boolean) => void,
-	signal: AbortSignal,
+	writeOut: (mermaidContainer: HTMLElement, content: string) => void,
+	signal?: AbortSignal,
 ): {
 	containerId: string;
 	contentHash: string;
@@ -59,7 +32,6 @@ function renderMermaidElement(
 	mermaidContainer.dataset.vscodeContext = JSON.stringify({
 		webviewSection: 'mermaid',
 		mermaidSource: source,
-		preventDefaultContextMenuItems: true,
 	});
 	mermaidContainer.innerHTML = '';
 
@@ -70,22 +42,24 @@ function renderMermaidElement(
 			try {
 				// Catch any parsing errors
 				await mermaid.parse(source);
-				if (signal.aborted) {
+				if (signal?.aborted) {
 					throw new DOMException('Aborted', 'AbortError');
 				}
 
 				//  Render the diagram
 				const renderResult = await mermaid.render(diagramId, source);
-				if (signal.aborted) {
+				if (signal?.aborted) {
 					throw new DOMException('Aborted', 'AbortError');
 				}
 
-				writeOut(mermaidContainer, renderResult.svg, false);
+				writeOut(mermaidContainer, renderResult.svg);
 				renderResult.bindFunctions?.(mermaidContainer);
 			} catch (error) {
 				if (error instanceof Error && error.name !== 'AbortError') {
-					markVsCodeContextAsError(mermaidContainer);
-					writeOut(mermaidContainer, createMermaidErrorElement(error).outerHTML, true);
+					const errorMessageNode = document.createElement('pre');
+					errorMessageNode.className = 'mermaid-error';
+					errorMessageNode.innerText = error.message;
+					writeOut(mermaidContainer, errorMessageNode.outerHTML);
 				}
 
 				throw error;
@@ -96,8 +70,8 @@ function renderMermaidElement(
 
 export async function renderMermaidBlocksInElement(
 	root: HTMLElement,
-	writeOut: (mermaidContainer: HTMLElement, content: string, contentHash: string, isError: boolean) => void,
-	signal: AbortSignal,
+	writeOut: (mermaidContainer: HTMLElement, content: string, contentHash: string) => void,
+	signal?: AbortSignal
 ): Promise<void> {
 	// Track used IDs for this render pass
 	const usedIds = new Set<string>();
@@ -115,8 +89,8 @@ export async function renderMermaidBlocksInElement(
 	// We need to generate all the container ids sync, but then do the actual rendering async
 	const renderPromises: Array<Promise<void>> = [];
 	for (const mermaidContainer of root.querySelectorAll<HTMLElement>('.mermaid')) {
-		const result = renderMermaidElement(mermaidContainer, usedIds, (container, content, isError) => {
-			writeOut(container, content, result!.contentHash, isError);
+		const result = renderMermaidElement(mermaidContainer, usedIds, (container, content) => {
+			writeOut(container, content, result!.contentHash);
 		}, signal);
 		if (result) {
 			renderPromises.push(result.p);
@@ -133,9 +107,9 @@ export async function registerMermaidAddons() {
 	await mermaid.registerExternalDiagrams([zenuml]);
 }
 
-export const defaultExtensionConfig: MermaidExtensionConfig = {
-	darkModeTheme: vsCodeMermaidTheme,
-	lightModeTheme: vsCodeMermaidTheme,
+const defaultConfig: MermaidExtensionConfig = {
+	darkModeTheme: 'dark',
+	lightModeTheme: 'default',
 	maxTextSize: 50000,
 	clickDrag: ClickDragMode.Alt,
 	showControls: ShowControlsMode.OnHoverOrFocus,
@@ -147,23 +121,23 @@ export function loadExtensionConfig(): MermaidExtensionConfig {
 	const configSpan = document.getElementById('markdown-mermaid');
 	const configAttr = configSpan?.dataset.config;
 	if (!configAttr) {
-		return defaultExtensionConfig;
+		return defaultConfig;
 	}
 
 	try {
-		return { ...defaultExtensionConfig, ...JSON.parse(configAttr) };
+		return { ...defaultConfig, ...JSON.parse(configAttr) };
 	} catch {
-		return defaultExtensionConfig;
+		return defaultConfig;
 	}
 }
 
-export function buildMermaidConfig(
-	extensionConfig: MermaidExtensionConfig,
-	vsCodeThemeTracker: VsCodeMermaidThemeTracker,
-): MermaidConfig {
+export function loadMermaidConfig(): MermaidConfig {
+	const config = loadExtensionConfig();
 	return {
 		startOnLoad: false,
-		...vsCodeThemeTracker.resolveMermaidTheme(extensionConfig),
+		theme: (document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast')
+			? config.darkModeTheme
+			: config.lightModeTheme) as MermaidConfig['theme'],
 	};
 }
 

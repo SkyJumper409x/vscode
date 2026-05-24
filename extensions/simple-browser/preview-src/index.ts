@@ -5,61 +5,14 @@
 
 import { onceDocumentLoaded } from './events';
 
-interface SimpleBrowserSettings {
-	readonly url: string;
-	readonly focusLockEnabled: boolean;
-}
-
-interface SimpleBrowserState {
-	readonly url: string;
-}
-
-interface OpenExternalMessage {
-	readonly type: 'openExternal';
-	readonly url: string;
-}
-
-type ExtensionToWebviewMessage =
-	| { readonly type: 'focus' }
-	| { readonly type: 'didChangeFocusLockIndicatorEnabled'; readonly focusLockEnabled: boolean };
-
-interface VsCodeApi<State, Message> {
-	setState(state: State): void;
-	postMessage(message: Message): void;
-}
-
-declare function acquireVsCodeApi(): VsCodeApi<SimpleBrowserState, OpenExternalMessage>;
-
 const vscode = acquireVsCodeApi();
 
-function isSimpleBrowserSettings(value: unknown): value is SimpleBrowserSettings {
-	return typeof value === 'object'
-		&& value !== null
-		&& 'url' in value
-		&& typeof value.url === 'string'
-		&& 'focusLockEnabled' in value
-		&& typeof value.focusLockEnabled === 'boolean';
-}
-
-function isExtensionToWebviewMessage(value: unknown): value is ExtensionToWebviewMessage {
-	return typeof value === 'object'
-		&& value !== null
-		&& 'type' in value
-		&& (value.type === 'focus'
-			|| (value.type === 'didChangeFocusLockIndicatorEnabled'
-				&& 'focusLockEnabled' in value
-				&& typeof value.focusLockEnabled === 'boolean'));
-}
-
-function getSettings(): SimpleBrowserSettings {
+function getSettings() {
 	const element = document.getElementById('simple-browser-settings');
 	if (element) {
 		const data = element.getAttribute('data-settings');
 		if (data) {
-			const settings: unknown = JSON.parse(data);
-			if (isSimpleBrowserSettings(settings)) {
-				return settings;
-			}
+			return JSON.parse(data);
 		}
 	}
 
@@ -77,12 +30,7 @@ const reloadButton = header.querySelector<HTMLButtonElement>('.reload-button')!;
 const openExternalButton = header.querySelector<HTMLButtonElement>('.open-external-button')!;
 
 window.addEventListener('message', e => {
-	const message: unknown = e.data;
-	if (!isExtensionToWebviewMessage(message)) {
-		return;
-	}
-
-	switch (message.type) {
+	switch (e.data.type) {
 		case 'focus':
 			{
 				iframe.focus();
@@ -90,7 +38,7 @@ window.addEventListener('message', e => {
 			}
 		case 'didChangeFocusLockIndicatorEnabled':
 			{
-				toggleFocusLockIndicatorEnabled(message.focusLockEnabled);
+				toggleFocusLockIndicatorEnabled(e.data.enabled);
 				break;
 			}
 	}
@@ -139,7 +87,7 @@ onceDocumentLoaded(() => {
 	navigateTo(settings.url);
 	input.value = settings.url;
 
-	toggleFocusLockIndicatorEnabled(settings.focusLockEnabled);
+	toggleFocusLockIndicatorEnabled(settings.focusLockIndicatorEnabled);
 
 	function navigateTo(rawUrl: string): void {
 		try {

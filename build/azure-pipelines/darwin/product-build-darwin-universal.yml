@@ -201,7 +201,7 @@ jobs:
           fi
           echo "Startup timers:"
           cat "$TIMERS_FILE"
-        timeoutInMinutes: 5
+        timeoutInMinutes: 2
         displayName: Verify signature
 
       - script: |

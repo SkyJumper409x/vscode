@@ -14,7 +14,6 @@ import { MdDocumentRenderer } from './documentRenderer';
 import { MarkdownPreviewLineDiffProvider } from './lineDiff';
 import { DynamicMarkdownPreview, IManagedMarkdownPreview, StaticMarkdownPreview } from './preview';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
-import { RenderedDiffWarningManager } from './renderedDiffWarning';
 import { scrollEditorToLine, StartingScrollFragment, StartingScrollLine, StartingScrollLocation } from './scrolling';
 import { getVisibleLine, TopmostLineMonitor } from './topmostLineMonitor';
 import type { DiffScrollSyncData, MarkdownPreviewLineChanges } from '../../types/previewMessaging';
@@ -87,14 +86,12 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 	readonly #logger: ILogger;
 	readonly #contributions: MarkdownContributionProvider;
 	readonly #opener: MdLinkOpener;
-	readonly #renderedDiffWarning: RenderedDiffWarningManager;
 
 	public constructor(
 		contentProvider: MdDocumentRenderer,
 		logger: ILogger,
 		contributions: MarkdownContributionProvider,
 		opener: MdLinkOpener,
-		workspaceState: vscode.Memento,
 	) {
 		super();
 
@@ -102,7 +99,6 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		this.#logger = logger;
 		this.#contributions = contributions;
 		this.#opener = opener;
-		this.#renderedDiffWarning = this._register(new RenderedDiffWarningManager(workspaceState));
 
 		this._register(vscode.window.registerWebviewPanelSerializer(DynamicMarkdownPreview.viewType, this));
 
@@ -314,7 +310,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 			getDiffScrollSync
 		);
 		this.#registerStaticPreview(preview);
-		this.#setActivePreview(preview);
+		this.#activePreview = preview;
 		return preview;
 	}
 
@@ -347,7 +343,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 			this.#contributions,
 			this.#opener);
 
-		this.#setActivePreview(preview);
+		this.#activePreview = preview;
 		return this.#registerDynamicPreview(preview);
 	}
 
@@ -390,19 +386,14 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 
 	#trackActive(preview: IManagedMarkdownPreview): void {
 		preview.onDidChangeViewState(({ webviewPanel }) => {
-			this.#setActivePreview(webviewPanel.active ? preview : undefined);
+			this.#activePreview = webviewPanel.active ? preview : undefined;
 		});
 
 		preview.onDispose(() => {
 			if (this.#activePreview === preview) {
-				this.#setActivePreview(undefined);
+				this.#activePreview = undefined;
 			}
 		});
-	}
-
-	#setActivePreview(preview: IManagedMarkdownPreview | undefined): void {
-		this.#activePreview = preview;
-		this.#renderedDiffWarning.setActiveDiffPreview(!!preview?.isDiffView);
 	}
 
 }

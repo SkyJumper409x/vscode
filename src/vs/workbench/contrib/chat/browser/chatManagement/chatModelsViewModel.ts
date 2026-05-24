@@ -38,7 +38,6 @@ export interface ILanguageModelProvider {
 
 export interface ILanguageModel extends ILanguageModelChatMetadataAndIdentifier {
 	provider: ILanguageModelProvider;
-	hidden: boolean;
 }
 
 export interface ILanguageModelEntry {
@@ -66,7 +65,6 @@ export interface ILanguageModelProviderEntry {
 	label: string;
 	templateId: string;
 	collapsed: boolean;
-	hidden: boolean;
 	vendorEntry: ILanguageModelProvider;
 }
 
@@ -141,7 +139,6 @@ export class ChatModelsViewModel extends Disposable {
 		super();
 		this.languageModels = [];
 		this._register(this.languageModelsService.onDidChangeLanguageModels(vendor => this.refreshVendor(vendor)));
-		this._register(this.languageModelsService.onDidChangeModelVisibility(() => this.refreshVisibility()));
 	}
 
 	private readonly _viewModelEntries: IViewModelEntry[] = [];
@@ -398,7 +395,6 @@ export class ChatModelsViewModel extends Disposable {
 			label: provider.group.name,
 			templateId: VENDOR_ENTRY_TEMPLATE_ID,
 			collapsed: this.collapsedGroups.has(id),
-			hidden: this.languageModelsService.isGroupHidden(provider.group.vendor, provider.group.name),
 			vendorEntry: {
 				group: provider.group,
 				vendor: provider.vendor
@@ -477,7 +473,6 @@ export class ChatModelsViewModel extends Disposable {
 					identifier,
 					metadata,
 					provider,
-					hidden: this.languageModelsService.isModelHidden(identifier),
 				});
 			}
 		}
@@ -493,29 +488,6 @@ export class ChatModelsViewModel extends Disposable {
 
 		// return all models ungrouped
 		return this.languageModels;
-	}
-
-	toggleModelHidden(entry: ILanguageModelEntry): void {
-		this.languageModelsService.setModelHidden(entry.model.identifier, !entry.model.hidden);
-	}
-
-	toggleGroupHidden(entry: ILanguageModelProviderEntry): void {
-		this.languageModelsService.setGroupHidden(entry.vendorEntry.group.vendor, entry.vendorEntry.group.name, !entry.hidden);
-	}
-
-	setModelsHidden(entries: readonly ILanguageModelEntry[], hidden: boolean): void {
-		for (const entry of entries) {
-			this.languageModelsService.setModelHidden(entry.model.identifier, hidden);
-		}
-	}
-
-	private refreshVisibility(): void {
-		for (const model of this.languageModels) {
-			model.hidden = this.languageModelsService.isModelHidden(model.identifier);
-		}
-		// Rebuild groups so provider/group header `hidden` reflects the new state.
-		this.languageModelGroups = this.groupModels(this.languageModels);
-		this.doFilter();
 	}
 
 	private getModelId(modelEntry: ILanguageModel): string {

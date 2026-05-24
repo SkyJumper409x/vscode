@@ -38,7 +38,6 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 	private readonly activeCodeEditorListener = this._register(new MutableDisposable());
 	private readonly entryAnchor = h('span');
-	private readonly dashboardTooltip: IStatusbarEntry['tooltip'];
 
 	private runningSessionsCount: number;
 
@@ -55,25 +54,6 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		super();
 
 		this.runningSessionsCount = this.chatSessionsService.getInProgress().reduce((total, item) => total + item.count, 0);
-
-		this.dashboardTooltip = {
-			element: (token: CancellationToken) => {
-				const store = new DisposableStore();
-				store.add(token.onCancellationRequested(() => {
-					store.dispose();
-				}));
-				const elem = ChatStatusDashboard.instantiateInContents(this.instantiationService, store, undefined);
-
-				// todo@connor4312/@benibenj: workaround for #257923
-				store.add(disposableWindowInterval(mainWindow, () => {
-					if (!elem.isConnected) {
-						store.dispose();
-					}
-				}, 2000));
-
-				return elem;
-			}
-		};
 
 		this.update();
 
@@ -177,9 +157,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				}
 			}
 
-			// Signed out — keep showing Sign-in affordance even when BYOK models are present
-			// so air-gapped users can still authenticate to unlock the full Copilot experience.
-			else if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
+			// Signed out
+			else if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown && !this.chatEntitlementService.hasByokModels) {
 				return this.getSetupEntryProps();
 			}
 
@@ -228,7 +207,24 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			showInAllWindows: true,
 			kind,
 			content: this.entryAnchor,
-			tooltip: this.dashboardTooltip
+			tooltip: {
+				element: (token: CancellationToken) => {
+					const store = new DisposableStore();
+					store.add(token.onCancellationRequested(() => {
+						store.dispose();
+					}));
+					const elem = ChatStatusDashboard.instantiateInContents(this.instantiationService, store, undefined);
+
+					// todo@connor4312/@benibenj: workaround for #257923
+					store.add(disposableWindowInterval(mainWindow, () => {
+						if (!elem.isConnected) {
+							store.dispose();
+						}
+					}, 2000));
+
+					return elem;
+				}
+			}
 		} satisfies IStatusbarEntry;
 
 		return baseResult;

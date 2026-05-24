@@ -521,8 +521,6 @@ pub enum CodeError {
 	ServerOriginTimeout,
 	#[error("Server exited without writing port/socket: {0}")]
 	ServerUnexpectedExit(String),
-	#[error("Server binary is not executable: {0}")]
-	ServerNotExecutable(String),
 }
 
 makeAnyError!(

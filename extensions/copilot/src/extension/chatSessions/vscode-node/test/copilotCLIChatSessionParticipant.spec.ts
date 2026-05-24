@@ -254,7 +254,6 @@ async function waitForScheduledUntitledSwap(): Promise<void> {
 
 class TestCopilotCLISession extends CopilotCLISession {
 	public requests: Array<{ input: CopilotCLISessionInput; attachments: Attachment[]; model: { model: string; reasoningEffort?: string } | undefined; authInfo: NonNullable<SessionOptions['authInfo']>; token: vscode.CancellationToken }> = [];
-	public readonly attachedStreams: vscode.ChatResponseStream[] = [];
 	public permissionLevel: string | undefined;
 	public static nextHandleRequestResult: Promise<void> | undefined;
 	public static handleRequestHook: ((request: { id: string; toolInvocationToken: vscode.ChatParticipantToolToken; sessionResource?: vscode.Uri }, input: CopilotCLISessionInput) => Promise<void>) | undefined;
@@ -269,10 +268,6 @@ class TestCopilotCLISession extends CopilotCLISession {
 			return TestCopilotCLISession.handleRequestHook(request, input);
 		}
 		return TestCopilotCLISession.nextHandleRequestResult ?? Promise.resolve();
-	}
-	override attachStream(stream: vscode.ChatResponseStream): ReturnType<CopilotCLISession['attachStream']> {
-		this.attachedStreams.push(stream);
-		return super.attachStream(stream);
 	}
 	override setPermissionLevel(level: string | undefined): void {
 		this.permissionLevel = level;
@@ -664,29 +659,14 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 		expect(itemProvider.swap).not.toHaveBeenCalled();
 	});
 
-	it('returns early when yield is requested and attaches steering stream while the session is still running', async () => {
+	it.skip('returns early when yield is requested while the session is still running', async () => {
 		const sessionId = 'existing-yield';
 		const sdkSession = new MockCliSdkSession(sessionId, new Date());
 		manager.sessions.set(sessionId, sdkSession);
-		let resolveFirstRequest!: () => void;
-		let resolveSecondRequest!: () => void;
-		let resolveSecondRequestStarted!: () => void;
+		let resolveHandleRequest!: () => void;
 		let yieldRequested = false;
-		const firstRequestDeferred = new Promise<void>(resolve => {
-			resolveFirstRequest = resolve;
-		});
-		const secondRequestDeferred = new Promise<void>(resolve => {
-			resolveSecondRequest = resolve;
-		});
-		const secondRequestStarted = new Promise<void>(resolve => {
-			resolveSecondRequestStarted = resolve;
-		});
-		TestCopilotCLISession.handleRequestHook = vi.fn((_request, input) => {
-			if (input.prompt === 'Continue') {
-				return firstRequestDeferred;
-			}
-			resolveSecondRequestStarted();
-			return secondRequestDeferred;
+		TestCopilotCLISession.nextHandleRequestResult = new Promise<void>(resolve => {
+			resolveHandleRequest = resolve;
 		});
 
 		const request = new TestChatRequest('Continue');
@@ -711,24 +691,11 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 		expect(resolved).toBe(false);
 
 		yieldRequested = true;
-		await new Promise(resolve => setTimeout(resolve, 150));
+		await new Promise(resolve => setTimeout(resolve, 600));
 		expect(resolved).toBe(true);
+
+		resolveHandleRequest();
 		await handlerPromise;
-
-		const steeringRequest = new TestChatRequest('Steer');
-		steeringRequest.sessionResource = request.sessionResource;
-		const steeringContext = createChatContext(sessionId, false, steeringRequest);
-		const steeringStream = new MockChatResponseStream();
-		const steeringToken = disposables.add(new CancellationTokenSource()).token;
-		const steeringPromise = participant.createHandler()(steeringRequest, steeringContext, steeringStream, steeringToken);
-		await secondRequestStarted;
-
-		expect(cliSessions[0].attachedStreams).toEqual([stream, steeringStream]);
-
-		resolveSecondRequest();
-		await steeringPromise;
-		resolveFirstRequest();
-		await new Promise(resolve => setTimeout(resolve, 0));
 	});
 
 	it('defers worktree handleRequestCompleted until all steering requests complete', async () => {

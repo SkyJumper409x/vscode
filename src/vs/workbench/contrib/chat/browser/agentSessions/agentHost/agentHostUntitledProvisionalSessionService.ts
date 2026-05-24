@@ -420,8 +420,9 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				Object.assign(entry.config, partial);
 			}
 		}
-		this._agentHostService.dispatch(backend.toString(), {
+		this._agentHostService.dispatch({
 			type: ActionType.SessionConfigChanged,
+			session: backend.toString(),
 			config: partial,
 		});
 

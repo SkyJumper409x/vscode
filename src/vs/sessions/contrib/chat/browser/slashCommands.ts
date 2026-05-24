@@ -23,7 +23,6 @@ import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../..
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IChatPromptSlashCommand, IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
-import { INewChatModelPickerService } from './newChatModelPicker.js';
 
 /**
  * Static command ID used by completion items to trigger immediate slash command execution,
@@ -70,7 +69,6 @@ export class SlashCommandHandler extends Disposable {
 		@IThemeService private readonly themeService: IThemeService,
 		@IAICustomizationWorkspaceService private readonly aiCustomizationWorkspaceService: IAICustomizationWorkspaceService,
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@INewChatModelPickerService private readonly newChatModelPickerService: INewChatModelPickerService,
 	) {
 		super();
 		this._registerSlashCommands();
@@ -142,13 +140,6 @@ export class SlashCommandHandler extends Disposable {
 			sortText: 'z3_hooks',
 			executeImmediately: true,
 			execute: openSection(AICustomizationManagementSection.Hooks),
-		});
-		this._slashCommands.push({
-			command: 'models',
-			detail: localize('slashCommand.models', "Open the model picker"),
-			sortText: 'z3_models',
-			executeImmediately: true,
-			execute: () => this.newChatModelPickerService.openModelPicker(),
 		});
 	}
 

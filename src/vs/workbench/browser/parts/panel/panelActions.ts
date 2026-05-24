@@ -321,7 +321,7 @@ MenuRegistry.appendMenuItems([
 	{
 		id: MenuId.LayoutControlMenu,
 		item: {
-			group: 'navigation',
+			group: '2_pane_toggles',
 			command: {
 				id: TogglePanelAction.ID,
 				title: localize('togglePanel', "Toggle Panel"),

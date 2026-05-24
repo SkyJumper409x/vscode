@@ -14,7 +14,6 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
-import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
@@ -130,7 +129,7 @@ registerAction2(class GoBackAction extends Action2 {
 				win: { primary: KeyMod.Alt | KeyCode.LeftArrow },
 				mac: { primary: KeyMod.WinCtrl | KeyCode.Minus },
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus },
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorContextKeys.editorTextFocus.toNegated()),
+				when: IsSessionsWindowContext,
 			},
 			menu: [{
 				id: Menus.TitleBarLeftLayout,
@@ -170,7 +169,7 @@ registerAction2(class GoForwardAction extends Action2 {
 				win: { primary: KeyMod.Alt | KeyCode.RightArrow },
 				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Minus },
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus },
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorContextKeys.editorTextFocus.toNegated()),
+				when: IsSessionsWindowContext,
 			},
 			menu: [{
 				id: Menus.TitleBarLeftLayout,

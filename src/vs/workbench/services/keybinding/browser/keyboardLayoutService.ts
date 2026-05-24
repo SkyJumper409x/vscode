@@ -114,13 +114,9 @@ export class BrowserKeyboardMapperFactoryBase extends Disposable {
 
 	removeKeyboardLayout(layout: KeymapInfo): void {
 		let index = this._mru.indexOf(layout);
-		if (index !== -1) {
-			this._mru.splice(index, 1);
-		}
+		this._mru.splice(index, 1);
 		index = this._keymapInfos.indexOf(layout);
-		if (index !== -1) {
-			this._keymapInfos.splice(index, 1);
-		}
+		this._keymapInfos.splice(index, 1);
 	}
 
 	getMatchedKeymapInfo(keyMapping: IKeyboardMapping | null): { result: KeymapInfo; score: number } | null {

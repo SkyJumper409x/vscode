@@ -6,22 +6,18 @@
 import { afterEach, beforeEach, expect, suite, test } from 'vitest';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
-import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
+import { IConfigurationService } from '../../../configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../../configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
-import { MockFileSystemService } from '../../../filesystem/node/test/mockFileSystemService';
 import { createPlatformServices, ITestingServicesAccessor } from '../../../test/node/services';
 import { TestWorkspaceService } from '../../../test/node/testWorkspaceService';
 import { IWorkspaceService } from '../../../workspace/common/workspaceService';
 import { ICustomInstructionsService } from '../../common/customInstructionsService';
-import { IFileSystemService } from '../../../filesystem/common/fileSystemService';
-import { mockFiles } from '../../../promptFiles/test/node/mockFiles';
 
 suite('CustomInstructionsService - Skills', () => {
 	let accessor: ITestingServicesAccessor;
 	let customInstructionsService: ICustomInstructionsService;
 	let configService: InMemoryConfigurationService;
-	let fileSystemService: MockFileSystemService;
 
 	beforeEach(async () => {
 		const services = createPlatformServices();
@@ -42,7 +38,6 @@ suite('CustomInstructionsService - Skills', () => {
 
 		accessor = services.createTestingAccessor();
 		customInstructionsService = accessor.get(ICustomInstructionsService);
-		fileSystemService = accessor.get(IFileSystemService) as MockFileSystemService;
 	});
 
 	afterEach(() => {
@@ -328,28 +323,6 @@ suite('CustomInstructionsService - Skills', () => {
 	});
 
 	suite('chat.instructionsFilesLocations config', () => {
-		test('should return workspace and home copilot instruction files from getAgentInstructions', async () => {
-			await configService.setConfig(ConfigKey.UseInstructionFiles, true);
-			await mockFiles(fileSystemService, [
-				{ path: '/workspace/.github/copilot-instructions.md', contents: ['Workspace instructions'] },
-				{ path: '/home/testuser/.copilot/copilot-instructions.md', contents: ['Home instructions'] },
-			]);
-
-			expect((await customInstructionsService.getAgentInstructions()).map(uri => uri.path)).toEqual([
-				'/workspace/.github/copilot-instructions.md',
-				'/home/testuser/.copilot/copilot-instructions.md',
-			]);
-		});
-
-		test('should skip home copilot instruction files from getAgentInstructions when disabled', async () => {
-			await configService.setConfig(ConfigKey.UseInstructionFiles, false);
-			await mockFiles(fileSystemService, [
-				{ path: '/home/testuser/.copilot/copilot-instructions.md', contents: ['Home instructions'] },
-			]);
-
-			expect(await customInstructionsService.getAgentInstructions()).toEqual([]);
-		});
-
 		test('should recognize instruction file in absolute path location', async () => {
 			await configService.setNonExtensionConfig('chat.instructionsFilesLocations', {
 				'/custom/instructions': true

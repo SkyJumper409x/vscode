@@ -6,7 +6,6 @@
 import type { IReference } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
-import { Event } from '../../../../base/common/event.js';
 import type { IDiffComputeService, IDiffCountResult } from '../../common/diffComputeService.js';
 import type { IFileEditContent, IFileEditRecord, ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 
@@ -93,14 +92,6 @@ export class TestSessionDatabase implements ISessionDatabase {
 
 	async remapTurnIds(_mapping: ReadonlyMap<string, string>): Promise<void> { }
 
-	async setTurnCheckpointRef(_turnId: string, _ref: string): Promise<void> { }
-
-	async getTurnCheckpointRef(_turnId: string): Promise<string | undefined> { return undefined; }
-
-	async getPreviousCheckpointRef(_turnId: string): Promise<string | undefined> { return undefined; }
-
-	async getAllCheckpointRefs(): Promise<string[]> { return []; }
-
 	async whenIdle(): Promise<void> { }
 
 	private _toEditRecords(edits: (IFileEditRecord & IFileEditContent)[]): IFileEditRecord[] {
@@ -142,7 +133,6 @@ export function createSessionDataService(database: ISessionDatabase = new TestSe
 		openDatabase: () => createReference(database),
 		tryOpenDatabase: async () => createReference(database),
 		deleteSessionData: async () => { },
-		onWillDeleteSessionData: Event.None,
 		cleanupOrphanedData: async () => { },
 		whenIdle: async () => { },
 	};
@@ -156,7 +146,6 @@ export function createNullSessionDataService(): ISessionDataService {
 		openDatabase: () => { throw new Error('not implemented'); },
 		tryOpenDatabase: async () => undefined,
 		deleteSessionData: async () => { },
-		onWillDeleteSessionData: Event.None,
 		cleanupOrphanedData: async () => { },
 		whenIdle: async () => { },
 	};
@@ -188,12 +177,6 @@ export function createNoopGitService(): import('../../node/agentHostGitService.j
 		getSessionGitState: async () => undefined,
 		computeSessionFileDiffs: async () => undefined,
 		showBlob: async () => undefined,
-		captureWorkingTreeAsTree: async () => undefined,
-		commitTree: async () => undefined,
-		updateRef: async () => { },
-		deleteRefs: async () => { },
-		revParse: async () => undefined,
-		computeFileDiffsBetweenRefs: async () => undefined,
 	};
 }
 

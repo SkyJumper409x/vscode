@@ -5,8 +5,8 @@
 
 import * as vscode from 'vscode';
 
-export function disposeAll(disposables: Iterable<vscode.Disposable>): void {
-	const errors: unknown[] = [];
+export function disposeAll(disposables: Iterable<vscode.Disposable>) {
+	const errors: any[] = [];
 
 	for (const disposable of disposables) {
 		try {
@@ -32,7 +32,7 @@ export abstract class Disposable {
 
 	protected _disposables: vscode.Disposable[] = [];
 
-	public dispose(): void {
+	public dispose(): any {
 		if (this.#isDisposed) {
 			return;
 		}

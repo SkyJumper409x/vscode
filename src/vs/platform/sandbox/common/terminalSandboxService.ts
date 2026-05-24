@@ -37,13 +37,6 @@ export interface ITerminalSandboxWrapResult {
 	requiresUnsandboxConfirmation?: boolean;
 }
 
-export interface ITerminalSandboxPrecheckInputs {
-	/**
-	 * Whether the current caller is using the default approval permission flow.
-	 */
-	readonly isDefaultApprovalPermissionEnabled?: boolean;
-}
-
 export interface ITerminalSandboxCommand {
 	/**
 	 * Normalized command name without path or executable suffix.
@@ -91,17 +84,17 @@ export interface ISandboxDependencyInstallResult {
 
 export interface ITerminalSandboxService {
 	readonly _serviceBrand: undefined;
-	isEnabled(precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<boolean>;
-	isSandboxAllowNetworkEnabled(precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<boolean>;
+	isEnabled(): Promise<boolean>;
+	isSandboxAllowNetworkEnabled(): Promise<boolean>;
 	getOS(): Promise<OperatingSystem>;
-	checkForSandboxingPrereqs(forceRefresh?: boolean, precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<ITerminalSandboxPrerequisiteCheckResult>;
+	checkForSandboxingPrereqs(forceRefresh?: boolean): Promise<ITerminalSandboxPrerequisiteCheckResult>;
 	/**
 	 * Wraps a command line for sandbox execution. Command details are optional,
 	 * but when provided they are used to derive command-specific read/write
 	 * allow-list entries.
 	 */
 	wrapCommand(command: string, requestUnsandboxedExecution?: boolean, shell?: string, cwd?: URI, commandDetails?: readonly ITerminalSandboxCommand[]): Promise<ITerminalSandboxWrapResult>;
-	getSandboxConfigPath(forceRefresh?: boolean, precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<string | undefined>;
+	getSandboxConfigPath(forceRefresh?: boolean): Promise<string | undefined>;
 	getTempDir(): URI | undefined;
 	setNeedsForceUpdateConfigFile(): void;
 	getResolvedNetworkDomains(): ITerminalSandboxResolvedNetworkDomains;

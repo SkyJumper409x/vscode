@@ -47,7 +47,7 @@ function createSession(id: string, opts: {
 		description: observableValue(`description-${id}`, undefined),
 		lastTurnEnd: observableValue(`lastTurnEnd-${id}`, undefined),
 		chats: observableValue<readonly IChat[]>(`chats-${id}`, []),
-		mainChat: observableValue<IChat>(`mainChat-${id}`, undefined!),
+		mainChat: undefined!,
 		capabilities: { supportsMultipleChats: false },
 	};
 }

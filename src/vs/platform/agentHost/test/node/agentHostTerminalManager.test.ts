@@ -75,6 +75,7 @@ class TestTerminalDataHandler {
 			this.tracker.detectionAvailableEmitted = true;
 			this.dispatched.push({
 				type: ActionType.TerminalCommandDetectionAvailable,
+				terminal: this.uri,
 			});
 		}
 
@@ -104,6 +105,7 @@ class TestTerminalDataHandler {
 
 				this.dispatched.push({
 					type: ActionType.TerminalCommandExecuted,
+					terminal: this.uri,
 					commandId,
 					commandLine,
 					timestamp,
@@ -133,6 +135,7 @@ class TestTerminalDataHandler {
 
 				this.dispatched.push({
 					type: ActionType.TerminalCommandFinished,
+					terminal: this.uri,
 					commandId: finishedCommandId,
 					exitCode: event.exitCode,
 					durationMs,
@@ -144,6 +147,7 @@ class TestTerminalDataHandler {
 					this.cwd = event.value;
 					this.dispatched.push({
 						type: ActionType.TerminalCwdChanged,
+						terminal: this.uri,
 						cwd: event.value,
 					});
 				}
@@ -270,7 +274,7 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
 
 		const createTerminal = manager.createTerminal({
-			channel: 'agenthost-terminal://test/command-input',
+			terminal: 'agenthost-terminal://test/command-input',
 			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
 			cwd: process.cwd(),
 			cols: 80,
@@ -295,7 +299,7 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
 
 		const createTerminal = manager.createTerminal({
-			channel: 'agenthost-terminal://test/bracketed-paste',
+			terminal: 'agenthost-terminal://test/bracketed-paste',
 			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
 			cwd: process.cwd(),
 			cols: 80,
@@ -320,7 +324,7 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
 
 		const createTerminal = manager.createTerminal({
-			channel: 'agenthost-terminal://test/bracketed-paste-disabled',
+			terminal: 'agenthost-terminal://test/bracketed-paste-disabled',
 			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
 			cwd: process.cwd(),
 			cols: 80,
@@ -351,7 +355,7 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 			const pty = new TestPty();
 			const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
 			const createTerminal = manager.createTerminal({
-				channel: `agenthost-terminal://test/${id}`,
+				terminal: `agenthost-terminal://test/${id}`,
 				claim,
 				cwd: process.cwd(),
 				cols: 80,
@@ -397,7 +401,7 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
 
 		const createTerminal = manager.createTerminal({
-			channel: 'agenthost-terminal://test/dsr',
+			terminal: 'agenthost-terminal://test/dsr',
 			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
 			cwd: process.cwd(),
 			cols: 80,
@@ -422,7 +426,7 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		const uri = 'agenthost-terminal://test/alt-buffer';
 
 		const createTerminal = manager.createTerminal({
-			channel: uri,
+			terminal: uri,
 			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
 			cwd: process.cwd(),
 			cols: 80,
@@ -451,7 +455,7 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		const uri = 'agenthost-terminal://test/alt-buffer-disposed';
 
 		const createTerminal = manager.createTerminal({
-			channel: uri,
+			terminal: uri,
 			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
 			cwd: process.cwd(),
 			cols: 80,
